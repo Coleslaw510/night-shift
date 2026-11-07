@@ -529,14 +529,14 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	_wall_seg(store, Vector3(-hw - 0.25, 0, ROOM_Z - 0.22), Vector3(BACK_DOOR_X - 0.8, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
 	_wall_seg(store, Vector3(BACK_DOOR_X + 0.8, 0, ROOM_Z - 0.22), Vector3(hw + 0.25, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
 	# Two pools of light down the middle. Corners get none.
-	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 4.0, 11.0)
-	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 2.4, 9.0)
+	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 2.6, 9.0)
+	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 1.35, 7.5)
 	for pil in [Vector3(-12, -23, 0), Vector3(12, -23, 0), Vector3(-12, -30, 0), Vector3(12, -30, 0)]:
 		box(store, Vector3(0.45, H, 0.45), Vector3(pil.x, H * 0.5, pil.y), mat(Color(0.35, 0.34, 0.32)), true)
 	# Pallet rack just inside the employee door: one crate per shelf product
 	var steel := mat(Color(0.2, 0.35, 0.6), 0.0, 0.5, 0.4)
 	var orange := mat(Color(0.85, 0.45, 0.1), 0.0, 0.5, 0.4)
-	var items: Array = Products.SHELF_ITEMS
+	var items: Array = Products.SHELF_ITEMS + Products.FROZEN_ITEMS
 	var per_level := int(ceil(items.size() / 2.0))
 	var rack_x0 := -6.0
 	var rack_w := 12.0

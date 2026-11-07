@@ -701,13 +701,14 @@ func hit() -> void:
 	for part in [body, leg_l, leg_r, arm_l, arm_r]:
 		if is_instance_valid(part) and parent:
 			part.reparent(parent, true)
-			var dir := Vector3(randf_range(-2.0, 2.0), randf_range(1.0, 3.0), randf_range(-2.0, 2.0))
+			part.add_to_group("sweepable")
+			part.set_meta("swept", false)
+			var dir := Vector3(randf_range(-1.4, 1.4), 0.12 - part.position.y, randf_range(-1.4, 1.4))
 			var tw := get_tree().create_tween()
 			tw.set_parallel(true)
-			tw.tween_property(part, "position", part.position + dir, 0.55)
-			tw.tween_property(part, "rotation", Vector3(randf(), randf(), randf()) * 4.0, 0.55)
+			tw.tween_property(part, "position", part.position + dir, 0.65).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tw.tween_property(part, "rotation", Vector3(randf(), randf(), randf()) * 2.0, 0.65)
 			tw.set_parallel(false)
-			tw.tween_callback(part.queue_free)
 	var g := game
 	if g and g.hud:
 		if is_criminal:

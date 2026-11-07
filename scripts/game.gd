@@ -31,6 +31,8 @@ var trash := 0.35
 var back_door_open := false
 var freezer_open := false
 var freezer_stock := {}
+var complaint_level := 0.0
+var clown_triggered := false
 var driving_car: Node = null
 var criminals_stopped := 0
 var criminals_escaped := 0
@@ -67,7 +69,7 @@ func _ready() -> void:
 	randomize()
 	Economy.load_data()
 	for pidx in Products.FROZEN_ITEMS:
-		freezer_stock[int(pidx)] = 8
+		freezer_stock[int(pidx)] = 2
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
@@ -116,6 +118,10 @@ func _ready() -> void:
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(player)
 	player.touch_mode = touch_mode
+	# Every employee starts with the pistol; it is not a shop unlock.
+	player.has_gun = true
+	ammo = 999999
+	mag_ammo = 8
 	player.prompt_changed.connect(hud.set_prompt)
 	player.carry_changed.connect(_on_carry_changed)
 	for i in 6:
@@ -199,7 +205,12 @@ func _process(delta: float) -> void:
 		_hint_t = 0.5
 		_update_hints()
 	monster_t += delta
-	if monster == null and elapsed >= 45.0:
+	# Neglected shelves, freezer stock, trash, and unhappy customers build pressure.
+	if shelves and shelves.total_fill() < 0.38:
+		complaint_level += delta * 0.10
+	if trash > 0.8:
+		complaint_level += delta * 0.04
+	if monster == null and not clown_triggered and complaint_level >= 10.0 and elapsed >= 35.0:
 		_spawn_monster()
 	if elapsed >= SHIFT_REAL_SECONDS:
 		end_shift()
@@ -219,9 +230,13 @@ func _spawn_monster() -> void:
 	monster = preload("res://scripts/monster.gd").new()
 	monster.name = "TheBackroomThing"
 	add_child(monster)
-	monster.global_position = Vector3(-17, 0, -22)
+	var spawn_out_back := randf() < 0.35
+	monster.global_position = Vector3(randf_range(-16.0, 16.0), 0, -47.0 if spawn_out_back else randf_range(-39.0, -20.0))
 	monster.setup(self, player)
-	hud.toast("Something is moving in the back rooms.", 5.0)
+	clown_triggered = true
+	# No warning text: the player hears the arrival and has to notice it.
+	play_sfx("error")
+	play_sfx("thud")
 
 func monster_attack(_m: Node) -> void:
 	if player == null or shift_over:
@@ -297,7 +312,12 @@ func vehicle_damaged_store(car: Node) -> void:
 	car.damage_reported = true
 	if store.has("damage"):
 		store.damage.visible = true
-	hud.toast("CRASH! A shelf collapsed and glass shattered.", 4.0)
+		store.damage.global_position = Vector3(car.global_position.x, 0, car.global_position.z)
+	if shelves and shelves.has_method("damage_row_near"):
+		shelves.damage_row_near(car.global_position.x)
+	complaint_level += 2.0
+	hud.toast("CRASH! Shelves collapsed and glass shattered.", 4.0)
+	play_sfx("thud")
 
 func on_criminal_escaped(_c: Node) -> void:
 	criminals_escaped += 1
@@ -493,6 +513,8 @@ func _on_paid(res: Dictionary) -> void:
 	if res.tip > 0:
 		msg += "  (tip $%.2f)" % (res.tip / 100.0)
 	if not res.correct:
+		complaint_level += 1.0
+	if not res.correct:
 		var diff: int = res.change_given - res.change_due
 		msg = ("Short-changed by $%.2f - complaint -$2.00" % (-diff / 100.0)) if diff < 0 else ("Gave $%.2f too much change" % (diff / 100.0))
 	hud.toast(msg)
@@ -636,12 +658,14 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 		"freezer":
 			var low := 0
 			for v in freezer_stock.values(): low += int(v)
-			return "[E] Refill freezer stock  (%d frozen items left)" % low if freezer_open else "[E] Open freezer doors  (%d frozen items)" % low
+			if freezer_open and player.carrying.get("kind", "") == "stock" and int(player.carrying.product) in Products.FROZEN_ITEMS:
+				return "[E] Stock freezer with %s" % Products.CATALOG[player.carrying.product].name
+			return "[E] Refill freezer from a back-room box  (%d frozen items left)" % low if freezer_open else "[E] Open freezer doors  (%d frozen items)" % low
 		"checkout_gun":
-			return "[E] Take the emergency shotgun" if not player.has_gun else "Emergency shotgun (empty)"
+			return "Pistol issued to every employee"
 		"locker":
 			if owned.has("gun_locker"):
-				return "Gun locker (empty)" if player.has_gun else "[E] Take the shotgun"
+				return "Gun locker (empty)" if player.has_gun else "[E] Take the pistol"
 			return "LOCKED - buy a key at the back office"
 		"terminal":
 			return "[E] Back office terminal"
@@ -676,10 +700,14 @@ func on_interact(body: Node, _p: Node) -> void:
 				freezer_open = true
 				hud.toast("Freezer doors open — milk, pizza, and frozen goods are visible.")
 			else:
-				for pidx in Products.FROZEN_ITEMS:
-					freezer_stock[int(pidx)] = mini(12, int(freezer_stock.get(int(pidx), 0)) + 4)
-				freezer_open = false
-				hud.toast("Freezer refilled and doors shut.")
+				var c: Dictionary = player.carrying
+				if c.get("kind", "") == "stock" and int(c.product) in Products.FROZEN_ITEMS:
+					freezer_stock[int(c.product)] = mini(12, int(freezer_stock.get(int(c.product), 0)) + 4)
+					player.use_stock_unit()
+					hud.toast("Freezer stocked. The doors close.")
+					freezer_open = false
+				else:
+					hud.toast("Bring a frozen box from the back room.")
 			var doors: Array = store.freezer.doors
 			for i in doors.size():
 				var door: Node3D = doors[i]
@@ -695,27 +723,40 @@ func on_interact(body: Node, _p: Node) -> void:
 			play_sfx("click")
 		"checkout_gun":
 			if player.has_gun:
-				hud.toast("You already took the shotgun.")
+				hud.toast("You already took the pistol.")
 			else:
 				player.has_gun = true
 				if ammo == 0 and mag_ammo == 0:
 					ammo = 6
-				hud.toast("Emergency shotgun ready. G to equip.")
+				hud.toast("Pistol ready. G to equip. R reloads 8 shots.")
 				play_sfx("click")
 		"locker":
 			if not owned.has("gun_locker"):
 				hud.toast("It's locked. Buy a key on the back office terminal.")
 				play_sfx("error")
 			elif player.has_gun:
-				hud.toast("You already took the shotgun.")
+				hud.toast("You already took the pistol.")
 			else:
 				player.has_gun = true
 				if ammo == 0 and mag_ammo == 0:
 					ammo = 6
-				hud.toast("Shotgun's yours. G to equip, R to reload. Keep it pointed at trouble.")
+				hud.toast("Pistol ready. G to equip, R to reload 8 shots.")
 				play_sfx("click")
+		"broom":
+			if player.carrying.is_empty():
+				player.set_carry({"kind": "broom"})
+				hud.toast("Broom equipped. Sweep up the mess.")
 		"terminal":
 			open_shop(false)
+
+func sweep_debris(p: Node) -> bool:
+	for d in get_tree().get_nodes_in_group("sweepable"):
+		if is_instance_valid(d) and d.global_position.distance_to(p.global_position) < 2.4:
+			d.queue_free()
+			stats.trash += 1
+			hud.toast("Swept up the mess.")
+			return true
+	return false
 
 func toggle_back_door() -> void:
 	back_door_open = not back_door_open
@@ -755,6 +796,8 @@ func has_flashlight() -> bool:
 	return owned.has("flashlight")
 
 func _on_carry_changed(c: Dictionary) -> void:
+	if hud and hud.has_method("set_inventory"):
+		hud.set_inventory("PISTOL" if player.has_gun else "EMPTY", "EMPTY" if c.is_empty() else str(c.get("kind", "")).to_upper())
 	match c.get("kind", ""):
 		"stock":
 			hud.set_status("CARRYING", "%s   %d LEFT — HOLD E ON ITS SHELF, OR DROP IT" % [Products.CATALOG[c.product].name.to_upper(), c.count], true)
@@ -774,6 +817,8 @@ func _update_hints() -> void:
 			stray += 1
 	if stray > 0:
 		lines.append("STRAY CARTS: %d  (return them to the corral)" % stray)
+	if complaint_level >= 5.0:
+		lines.append("CUSTOMER COMPLAINTS: %d%%" % mini(99, int(complaint_level * 7.0)))
 	if trash >= 1.0:
 		lines.append("TRASH IS OVERFLOWING!")
 	elif trash >= 0.7:
@@ -887,7 +932,7 @@ func apply_graphics() -> void:
 func _flicker() -> void:
 	# Two fixtures misbehave, like any good night-shift store.
 	var fr := Engine.get_process_frames()
-	for i in [4, 9]:
+	for i in [4, 9, maxi(0, store.lights.size() - 1), maxi(0, store.lights.size() - 2)]:
 		if i >= store.lights.size():
 			continue
 		var l: OmniLight3D = store.lights[i]

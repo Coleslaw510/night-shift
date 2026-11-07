@@ -40,6 +40,7 @@ var tasks_label: Label
 var prompt_label: Label
 var toast_label: Label
 var fps_label: Label
+var inventory_label: Label
 var pause_panel: Control
 var summary_panel: Control
 var summary_text: Label
@@ -184,6 +185,10 @@ func _ready() -> void:
 		si.visible = false
 	_apply_safe_area()
 	get_viewport().size_changed.connect(_apply_safe_area)
+
+func set_inventory(slot_one: String, slot_two: String) -> void:
+	if inventory_label:
+		inventory_label.text = "[ %s ]   [ %s ]" % [slot_one, slot_two]
 
 func _label(parent: Node, text: String, size: int, color: Color) -> Label:
 	var l := Label.new()

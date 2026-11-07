@@ -122,6 +122,14 @@ func _physics_process(delta: float) -> void:
 			inp = game.player.touch_move
 		# Top-down arcade driving: joystick/WASD directly chooses a world direction.
 		var dir := Vector3(inp.x, 0, inp.y)
+		if game and game.driving_camera:
+			var forward: Vector3 = -game.driving_camera.global_transform.basis.z
+			forward.y = 0
+			forward = forward.normalized()
+			var right: Vector3 = game.driving_camera.global_transform.basis.x
+			right.y = 0
+			right = right.normalized()
+			dir = right * inp.x + forward * -inp.y
 		if dir.length() > 0.05:
 			dir = dir.normalized()
 			global_position += dir * 9.5 * delta
