@@ -111,7 +111,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ### Known issues / rough edges (1.2)
 - iPhone: touch tuning and frame rate are not playtested on real hardware. Unsigned IPA must be signed by the sideloader (Signulous).
-- Customers are kinematic (waypoints plus steering). They sidestep the player and each other. A failsafe unsticks a state that stops making progress.
+- Customers are kinematic (waypoints plus steering). They sidestep the player and each other, and each reserves their own cart so a crowd doesn't circle one basket. A failsafe unsticks a state that stops making progress. Movement is substepped so a long frame doesn't fling them.
 - A mid-shift save restores money, purchases, and the clock. It does not restore live customers, carts, or cars.
 - The shotgun cannot hurt customers. Practice targets are the only thing it knocks over.
 - Cars follow a short waypoint path and stop if you're in front of them. They creep past after a few seconds so a blocked lane doesn't last forever.

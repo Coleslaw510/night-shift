@@ -10,6 +10,7 @@ var mode := M.FREE
 var follower: Node3D = null
 var touched_by_player := false
 var paid := false
+var reserved_by: Node = null
 
 func _ready() -> void:
 	add_to_group("cart")

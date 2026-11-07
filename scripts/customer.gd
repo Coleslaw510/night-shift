@@ -33,6 +33,8 @@ var wants_cart := false
 var my_cart: Node = null
 var my_car: Node = null
 var test_fast := false
+var _target_cart: Node = null
+var fetch_t := 0.0
 var _return_cart := false
 var _abandon_cart := false
 var _stuck_t := 0.0
@@ -62,9 +64,11 @@ func _ready() -> void:
 	speed = randf_range(1.1, 1.45)
 	var door_z := StoreBuilder.D * 0.5
 	if wants_cart and game and game.has_method("nearest_free_cart"):
-		var cart: Node = game.nearest_free_cart(global_position)
+		var cart: Node = game.nearest_free_cart(global_position, self)
 		if cart:
 			state = S.FETCH_CART
+			_target_cart = cart
+			cart.reserved_by = self
 			path = [cart.global_position]
 			return
 	path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
@@ -436,13 +440,9 @@ func _unstick() -> void:
 	_detours += 1
 	match state:
 		S.FETCH_CART:
-			if _detours >= 2 or game == null or game.nearest_free_cart(global_position) == null:
-				wants_cart = false
-				state = S.ENTER
-				path = [Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
-			else:
-				path = [game.nearest_free_cart(global_position).global_position]
-				position += Vector3(0.6, 0, 0.4)
+			_give_up_cart()
+			state = S.ENTER
+			path = [Vector3(StoreBuilder.DOOR_X, 0, StoreBuilder.D * 0.5 - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 		S.ENTER:
 			if _detours >= 2:
 				position = Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)
@@ -486,8 +486,32 @@ func _unstick() -> void:
 				position += Vector3(0.7, 0, 0.7)
 
 func _process(delta: float) -> void:
+	# Substep so a long frame (a slow machine, or time scale) can't fling people
+	# through each other and leave them orbiting in place.
+	var left := delta
+	var steps := 0
+	while left > 0.0001 and steps < 40:
+		var step := minf(left, 0.05)
+		_tick(step)
+		left -= step
+		steps += 1
+
+func _tick(delta: float) -> void:
 	_gather()
 	moving = false
+	if state == S.FETCH_CART:
+		fetch_t += delta
+		var close := _target_cart and is_instance_valid(_target_cart) and global_position.distance_to(_target_cart.global_position) < 1.5
+		if close or fetch_t > 8.0:
+			if close:
+				_claim_cart()
+			else:
+				_give_up_cart()
+			state = S.ENTER
+			fetch_t = 0.0
+			var door_z := StoreBuilder.D * 0.5
+			path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+			return
 	if _emote_t > 0.0:
 		_emote_t -= delta
 		if _emote_t <= 0.0:
@@ -503,7 +527,7 @@ func _process(delta: float) -> void:
 		var d := tgt - position
 		d.y = 0
 		var step := speed * delta
-		if d.length() <= maxf(step, 0.04):
+		if d.length() <= maxf(step, 0.2):
 			position = Vector3(tgt.x, 0, tgt.z)
 			path.pop_front()
 			if path.is_empty():
@@ -551,13 +575,25 @@ func _arrived() -> void:
 				_drop_my_cart()
 				queue_free()
 
+func _release_cart_reservation() -> void:
+	if _target_cart and is_instance_valid(_target_cart) and _target_cart.reserved_by == self:
+		_target_cart.reserved_by = null
+	_target_cart = null
+
+func _give_up_cart() -> void:
+	wants_cart = false
+	fetch_t = 0.0
+	_release_cart_reservation()
+
 func _claim_cart() -> void:
 	if my_cart or game == null:
 		return
-	var cart: Node = game.nearest_free_cart(global_position)
-	if cart and cart.global_position.distance_to(global_position) < 1.8:
+	var cart: Node = _target_cart if (_target_cart and is_instance_valid(_target_cart)) else game.nearest_free_cart(global_position, self)
+	if cart and cart.global_position.distance_to(global_position) < 1.8 and cart.mode != Cart.M.FOLLOW and cart.mode != Cart.M.HELD:
 		cart.follow(self)
+		cart.reserved_by = null
 		my_cart = cart
+		_target_cart = null
 
 func _leave_car() -> void:
 	if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):

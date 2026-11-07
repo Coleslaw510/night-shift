@@ -22,6 +22,12 @@ func _process(delta: float) -> bool:
 	if not started:
 		started = true
 		game.sim_mode = true
+		# Desktop defaults to an unlimited frame cap, which makes headless CI
+		# take huge steps. Lock a steady step after the world has applied graphics.
+		Settings.fps_cap = 30
+		game.apply_graphics()
+		Engine.time_scale = 8.0
+		Engine.max_fps = 30
 		for i in 8:
 			var c: Node = game._spawn_walker()
 			if c:
@@ -41,6 +47,9 @@ func _process(delta: float) -> bool:
 			save_done = _save_roundtrip()
 		var ok: bool = ready and save_done
 		print("SIM: t=%.0f served=%s walked=%s alive=%d cars=%d fuel=%s carts=%s save=%s" % [acc, game.stats.served, game.stats.walked, alive, game.cars_departed, game.stats.fuel, game.stats.carts, save_done])
+		if not ok:
+			for c in game.customers_root.get_children():
+				print("SIM cust state=%s pos=%s path=%d" % [c.state, c.position, c.path.size()])
 		print("SIM: done ok=%s" % ok)
 		quit(0 if ok else 1)
 		return true

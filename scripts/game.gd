@@ -416,11 +416,13 @@ func _spawn_carts() -> void:
 		add_child(c)
 		c.park(slot)
 
-func nearest_free_cart(from: Vector3) -> Node:
+func nearest_free_cart(from: Vector3, who: Node = null) -> Node:
 	var best: Node = null
 	var best_d := 1.0e9
 	for c in get_tree().get_nodes_in_group("cart"):
 		if c.mode == Cart.M.HELD or c.mode == Cart.M.FOLLOW:
+			continue
+		if c.reserved_by and is_instance_valid(c.reserved_by) and c.reserved_by != who:
 			continue
 		var d: float = c.global_position.distance_to(from)
 		if d < best_d:
