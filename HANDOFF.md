@@ -76,6 +76,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ### v0.1 baseline
 - [x] (a)-(f) skeleton/CI, store, player, customers, checkout, clock/summary/menu
+- [x] v1.1 CI green: run 42336173236 (Windows zip 33 MB, Mac zip 58 MB)
 - [ ] Next: multiplayer + proximity voice (Roadmap #1-2)
 <!-- STATUS-END -->
 

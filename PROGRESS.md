@@ -1,6 +1,6 @@
 # Progress
 
-## v1.1: **90%**
-All 1.1 features are done and smoke-tested, and the look has been iterated against docs/concept/store.jpg. Remaining: final CI build + artifacts.
+## v1.1: **100%**
+Done. CI run 42336173236 is green with Windows + Mac artifacts. Next milestone: multiplayer + proximity voice (see HANDOFF.md).
 
 ## v0.1 baseline: 100%
