@@ -36,6 +36,8 @@ var criminals_stopped := 0
 var criminals_escaped := 0
 var vehicle_exit_lock := 0.0
 var driving_camera: Camera3D = null
+var driving_cam_yaw := 0.0
+var driving_cam_pitch := 0.0
 var fuel_pedestrians := {}
 var front_open := 0.0
 var _hint_t := 0.0
@@ -174,8 +176,7 @@ func _process(delta: float) -> void:
 		vehicle_exit_lock = maxf(0.0, vehicle_exit_lock - delta)
 		player.global_position = driving_car.global_position + Vector3(0, 1.0, 0)
 		if driving_camera:
-			driving_camera.global_position = driving_car.global_position + Vector3(0, 9.5, 6.5)
-			driving_camera.look_at(driving_car.global_position + Vector3(0, 0.0, -0.5), Vector3.UP)
+			_update_driving_camera()
 		if vehicle_exit_lock <= 0.0 and Input.is_action_just_pressed("interact"):
 			exit_vehicle()
 		return
@@ -258,6 +259,22 @@ func enter_vehicle(car: Node) -> void:
 	driving_camera.global_position = car.global_position + Vector3(0, 9.5, 6.5)
 	driving_camera.look_at(car.global_position, Vector3.UP)
 	hud.toast("Driving view: joystick/WASD to steer. E to get out.")
+
+func driving_look(rel: Vector2) -> void:
+	if driving_car == null or not is_instance_valid(driving_car):
+		return
+	driving_cam_yaw -= rel.x * 2.8
+	driving_cam_pitch = clampf(driving_cam_pitch - rel.y * 2.0, -0.55, 0.65)
+	_update_driving_camera()
+
+func _update_driving_camera() -> void:
+	if driving_camera == null or driving_car == null or not is_instance_valid(driving_car):
+		return
+	var orbit := Vector3(0, 9.5, 6.5).rotated(Vector3.UP, driving_cam_yaw)
+	# A small pitch adjustment lets the right-hand drag look toward the car or out ahead.
+	orbit.y = clampf(9.5 + driving_cam_pitch * 8.0, 5.0, 13.0)
+	driving_camera.global_position = driving_car.global_position + orbit
+	driving_camera.look_at(driving_car.global_position + Vector3(0, 0.4, 0), Vector3.UP)
 
 func exit_vehicle() -> void:
 	if driving_car == null or not is_instance_valid(driving_car):

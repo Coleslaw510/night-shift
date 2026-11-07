@@ -702,7 +702,7 @@ func hit() -> void:
 		if is_instance_valid(part) and parent:
 			part.reparent(parent, true)
 			var dir := Vector3(randf_range(-2.0, 2.0), randf_range(1.0, 3.0), randf_range(-2.0, 2.0))
-			var tw := create_tween()
+			var tw := get_tree().create_tween()
 			tw.set_parallel(true)
 			tw.tween_property(part, "position", part.position + dir, 0.55)
 			tw.tween_property(part, "rotation", Vector3(randf(), randf(), randf()) * 4.0, 0.55)

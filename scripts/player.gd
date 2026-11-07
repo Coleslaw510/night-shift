@@ -296,6 +296,10 @@ func _play(sfx: String) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not controls_enabled:
+		if event is InputEventMouseMotion:
+			var driving_game := get_parent()
+			if driving_game and driving_game.has_method("driving_look"):
+				driving_game.driving_look(event.relative * base_sens * Settings.mouse_sens)
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var s := base_sens * Settings.mouse_sens
@@ -341,6 +345,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func touch_look(rel: Vector2) -> void:
 	if not controls_enabled:
+		var driving_game := get_parent()
+		if driving_game and driving_game.has_method("driving_look"):
+			driving_game.driving_look(rel)
 		return
 	rotate_y(-rel.x)
 	cam.rotate_x(-rel.y)
