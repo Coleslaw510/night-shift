@@ -71,7 +71,8 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] No handheld scanner and no "BARCODE SCANNER" HUD. USE on a belt item or the register rings it up. USE on a matching shelf stocks; otherwise USE or Q drops the box or bag on the floor (`dropped_item.gd`). Nothing teleports home.
 - [x] Shopping carts (`scripts/cart.gd`): eight start in the corral. Customers fetch one, and some abandon them in the lot. The player grabs (E or C), pushes, shoves, and can ride one up the rear ramp. Returning a player-moved cart to the corral pays $0.75.
 - [x] Cars (`scripts/vehicle.gd`): shoppers drive in from the front gate, park, walk in, and drive off when they leave. About 30% of spawns are fuel customers. They stop under the pump lights. USE the car to hear a dollar amount or "fill it up", USE again to run the meter, USE to stop. Pay scales with accuracy. A pump gives up after 75s so the bay never sticks.
-- [ ] Shop, save, gun, touch HUD, headless sim proofs, version bump.
+- [x] Shop (`data/economy.json`, `scripts/economy.gd`): back-office terminal and a pause-menu Shop button. Buys the locker key, ammo, flashlight (F), faster ring-up, double cart pay, stamina snacks (1 to eat), and vest colors. Sprint now uses a stamina bar.
+- [ ] Save / continue, gun, touch HUD, headless sim proofs, version bump.
 - Version string is still 1.1.1 until the final 1.2 build.
 
 ### v1.1.1 (iPhone)

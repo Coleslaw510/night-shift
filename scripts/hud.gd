@@ -8,6 +8,9 @@ signal resume_pressed
 signal menu_pressed
 signal change_confirmed(given: int)
 signal change_cancelled
+signal shop_buy(id: String)
+signal shop_eat
+signal shop_closed
 
 const GREEN := Color(0.55, 0.95, 0.45)
 const WHITE := Color(0.93, 0.93, 0.9)
@@ -138,6 +141,10 @@ func _ready() -> void:
 	var pb := _panel(root, "PAUSED")
 	pause_panel = pb[0]
 	_button(pb[1], "Resume", func(): resume_pressed.emit())
+	_button(pb[1], "Shop", func():
+		var g := get_parent()
+		if g and g.has_method("open_shop"):
+			g.open_shop(true))
 	Settings.add_sliders(pb[1])
 	_button(pb[1], "Quit to Menu", func(): menu_pressed.emit())
 	var sb := _panel(root, "SHIFT OVER")
@@ -147,6 +154,8 @@ func _ready() -> void:
 	_button(sb[1], "Back to Menu", func(): menu_pressed.emit())
 	_build_change_panel(root)
 	_build_fuel_meter(root)
+	_build_shop(root)
+	_build_stamina(root)
 	if touch_mode:
 		# Joystick lives bottom-left on touch screens: move the scanner status to the top center.
 		for l in [status_title, status_label]:
@@ -312,6 +321,83 @@ func set_fuel_meter(value: float, target: float, maxc: float) -> void:
 	fuel_fill.size.x = maxf(2.0, w * f)
 	fuel_mark.position.x = w * clampf(target / maxf(maxc, 1.0), 0.0, 1.0)
 	fuel_readout.text = "PUMP $%.2f    STOP NEAR $%.2f" % [value / 100.0, target / 100.0]
+
+var shop_panel: Control
+var shop_list: VBoxContainer
+var stamina_bar: ColorRect
+var stamina_back: ColorRect
+
+func _build_stamina(root: Control) -> void:
+	stamina_back = ColorRect.new()
+	stamina_back.color = Color(0, 0, 0, 0.45)
+	stamina_back.position = Vector2(84, 78)
+	stamina_back.size = Vector2(140, 6)
+	stamina_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamina_back.visible = false
+	root.add_child(stamina_back)
+	stamina_bar = ColorRect.new()
+	stamina_bar.color = Color(0.45, 0.85, 1)
+	stamina_bar.position = Vector2(84, 78)
+	stamina_bar.size = Vector2(140, 6)
+	stamina_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamina_bar.visible = false
+	root.add_child(stamina_bar)
+
+func set_stamina(frac: float, boosted: bool) -> void:
+	var show := frac < 0.98 or boosted
+	stamina_back.visible = show
+	stamina_bar.visible = show
+	stamina_bar.size.x = 140.0 * clampf(frac, 0.0, 1.0)
+	stamina_bar.color = Color(1, 0.8, 0.3) if boosted else Color(0.45, 0.85, 1)
+
+func _build_shop(root: Control) -> void:
+	shop_panel = ColorRect.new()
+	shop_panel.color = Color(0, 0, 0, 0.78)
+	shop_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shop_panel.visible = false
+	root.add_child(shop_panel)
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.grow_vertical = Control.GROW_DIRECTION_BOTH
+	box.custom_minimum_size = Vector2(460, 0)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	shop_panel.add_child(box)
+	var title := _label(box, "BACK OFFICE", 32, GREEN)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(460, 340)
+	box.add_child(scroll)
+	shop_list = VBoxContainer.new()
+	shop_list.custom_minimum_size = Vector2(440, 0)
+	shop_list.add_theme_constant_override("separation", 6)
+	scroll.add_child(shop_list)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	_button(row, "Eat snack", func(): shop_eat.emit(), 180)
+	_button(row, "Close", func(): shop_closed.emit(), 140)
+
+func show_shop(rows: Array) -> void:
+	for c in shop_list.get_children():
+		c.queue_free()
+	for row in rows:
+		var b := Button.new()
+		b.text = row.label
+		b.disabled = row.disabled
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(430, 36)
+		var id: String = row.id
+		b.pressed.connect(func(): shop_buy.emit(id))
+		shop_list.add_child(b)
+	shop_panel.visible = true
+	# Re-center after the list exists.
+	var box := shop_panel.get_child(0)
+	box.position = (shop_panel.size - box.size) * 0.5
+
+func hide_shop() -> void:
+	shop_panel.visible = false
 
 var _due := 0
 func open_change(total: int, cash: int) -> void:

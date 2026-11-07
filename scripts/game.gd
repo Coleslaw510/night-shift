@@ -35,10 +35,16 @@ var _sfx: Array = []
 var touch_mode := false
 var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0, "carts": 0, "fuel": 0}
 var cart_pay_mult := 1.0
+var owned := {}
+var ammo := 0
+var snacks := 0
+var vest := ""
+var shop_from_pause := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
+	Economy.load_data()
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
@@ -75,6 +81,9 @@ func _ready() -> void:
 	hud.menu_pressed.connect(_to_menu)
 	hud.change_confirmed.connect(_on_change_confirmed)
 	hud.change_cancelled.connect(close_change)
+	hud.shop_buy.connect(try_buy)
+	hud.shop_eat.connect(eat_snack)
+	hud.shop_closed.connect(close_shop)
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
 	player.position = Vector3(6.6, 0.05, 15.4)
@@ -315,9 +324,9 @@ func _finish_fuel() -> void:
 	var target := float(fuel_job.target)
 	var err := absf(value - target)
 	var acc := clampf(1.0 - err / maxf(target, 1.0), 0.0, 1.0)
-	var pay := int(round(250.0 * acc))
-	if err <= 150.0:
-		pay += 250
+	var pay := int(round(Economy.payout_f("fuel_base", 250.0) * acc))
+	if err <= Economy.payout_f("fuel_perfect_cents", 150.0):
+		pay += Economy.payout("fuel_perfect", 250)
 	stats.earnings += pay
 	stats.fuel = int(stats.fuel) + 1
 	hud.set_money(stats.earnings)
@@ -425,7 +434,8 @@ func _collect_stray_carts() -> void:
 		var d: Vector3 = c.global_position - origin
 		if absf(d.x) <= half.x and absf(d.z) <= half.z:
 			c.paid = true
-			var pay := int(round(float(CART_PAY) * cart_pay_mult))
+			var base := Economy.payout("cart", CART_PAY)
+			var pay := int(round(float(base) * cart_pay_mult))
 			stats.carts += 1
 			stats.earnings += pay
 			hud.set_money(stats.earnings)
@@ -465,7 +475,11 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 		"back_door":
 			return "[E] %s back door" % ("Close" if back_door_open else "Open")
 		"locker":
-			return "LOCKED - For emergencies only"
+			if owned.has("gun_locker"):
+				return "[E] Gun locker is open"
+			return "LOCKED — buy a key at the back office"
+		"terminal":
+			return "[E] Back office terminal"
 	return ""
 
 func on_interact(body: Node, _p: Node) -> void:
@@ -485,15 +499,22 @@ func on_interact(body: Node, _p: Node) -> void:
 			if player.carrying.get("kind", "") == "trash":
 				player.set_carry({})
 				stats.trash += 1
-				stats.earnings += TRASH_BONUS
+				var bonus := Economy.payout("trash", TRASH_BONUS)
+				stats.earnings += bonus
 				hud.set_money(stats.earnings)
-				hud.toast("+$%.2f  Clean store bonus" % (TRASH_BONUS / 100.0))
+				hud.toast("+$%.2f  Clean store bonus" % (bonus / 100.0))
 				play_sfx("thud")
 		"back_door":
 			toggle_back_door()
 		"locker":
-			hud.toast("It's locked. Manager's note: \"ONLY if something gets in.\"")
-			play_sfx("error")
+			if owned.has("gun_locker"):
+				hud.toast("The locker is open.")
+				play_sfx("click")
+			else:
+				hud.toast("It's locked. Buy a key on the back office terminal.")
+				play_sfx("error")
+		"terminal":
+			open_shop(false)
 
 func toggle_back_door() -> void:
 	back_door_open = not back_door_open
@@ -527,7 +548,10 @@ func _update_can() -> void:
 	bag.position.y = 0.05 + f * 0.39
 
 func has_fast_ring() -> bool:
-	return false
+	return owned.has("fast_ring")
+
+func has_flashlight() -> bool:
+	return owned.has("flashlight")
 
 func _on_carry_changed(c: Dictionary) -> void:
 	match c.get("kind", ""):
@@ -615,6 +639,96 @@ func set_paused(on: bool) -> void:
 	get_tree().paused = on
 	hud.show_pause(on)
 	capture_mouse(not on)
+
+func open_shop(from_pause: bool) -> void:
+	shop_from_pause = from_pause
+	if not from_pause:
+		player.controls_enabled = false
+		capture_mouse(false)
+	hud.show_shop(_shop_rows())
+
+func close_shop() -> void:
+	hud.hide_shop()
+	if not shop_from_pause and not get_tree().paused and not shift_over and _change_reg == null:
+		player.controls_enabled = true
+		capture_mouse(true)
+	shop_from_pause = false
+
+func _shop_rows() -> Array:
+	var rows: Array = []
+	for it in Economy.items():
+		var id := str(it.get("id", ""))
+		var kind := str(it.get("kind", ""))
+		var price := int(it.get("price", 0))
+		var req := str(it.get("requires", ""))
+		var disabled: bool = int(stats.earnings) < price
+		var label := "%s   $%.2f   %s" % [it.get("name", id), price / 100.0, it.get("desc", "")]
+		if kind == "unlock" and owned.has(id):
+			label = "%s   OWNED" % it.get("name", id)
+			disabled = true
+		elif kind == "vest" and vest == id:
+			label = "%s   WORN" % it.get("name", id)
+			disabled = true
+		elif req != "" and not owned.has(req):
+			label += "   (need %s)" % req
+			disabled = true
+		elif kind == "ammo":
+			label = "Shell box   $%.2f   (you have %d)" % [price / 100.0, ammo]
+		elif kind == "snack":
+			label = "Stamina snack   $%.2f   (you have %d)" % [price / 100.0, snacks]
+		rows.append({"id": id, "label": label, "disabled": disabled})
+	return rows
+
+func try_buy(id: String) -> void:
+	var it := Economy.item(id)
+	if it.is_empty():
+		return
+	var kind := str(it.get("kind", ""))
+	var price := int(it.get("price", 0))
+	var req := str(it.get("requires", ""))
+	if req != "" and not owned.has(req):
+		hud.toast("That's locked")
+		return
+	if kind == "unlock" and owned.has(id):
+		return
+	if kind == "vest" and vest == id:
+		return
+	if stats.earnings < price:
+		hud.toast("Not enough cash")
+		play_sfx("error")
+		return
+	stats.earnings -= price
+	hud.set_money(stats.earnings)
+	match kind:
+		"unlock":
+			owned[id] = true
+			if id == "cart_bonus":
+				cart_pay_mult = Economy.payout_f("cart_bonus_mult", 2.0)
+			if id == "flashlight":
+				player.has_light = true
+		"ammo":
+			ammo += int(it.get("amount", 8))
+		"snack":
+			snacks += 1
+		"vest":
+			vest = id
+			owned[id] = true
+			var col: Array = it.get("color", [0.2, 0.3, 0.2])
+			player.set_vest(Color(float(col[0]), float(col[1]), float(col[2])))
+	play_sfx("click")
+	hud.toast("Bought %s" % it.get("name", id))
+	hud.show_shop(_shop_rows())
+
+func eat_snack() -> void:
+	if snacks <= 0:
+		hud.toast("No snacks. Buy one at the back office.")
+		return
+	snacks -= 1
+	player.eat_boost()
+	hud.toast("Ate a snack. Sprint's easier.")
+	play_sfx("click")
+	if hud.shop_panel.visible:
+		hud.show_shop(_shop_rows())
 
 func _to_menu() -> void:
 	get_tree().paused = false

@@ -28,6 +28,12 @@ var sprint_toggle := false
 var holding_cart: Node3D = null
 var near_cart: Node3D = null
 var riding: Node3D = null
+var sleeve_mat: StandardMaterial3D
+var flash: SpotLight3D
+var has_light := false
+var stamina := 100.0
+var stamina_max := 100.0
+var boost_t := 0.0
 
 func _ready() -> void:
 	Settings.load_settings()
@@ -36,6 +42,16 @@ func _ready() -> void:
 		var ev := InputEventKey.new()
 		ev.physical_keycode = KEY_C
 		InputMap.action_add_event("cart", ev)
+	if not InputMap.has_action("flashlight"):
+		InputMap.add_action("flashlight")
+		var fl := InputEventKey.new()
+		fl.physical_keycode = KEY_F
+		InputMap.action_add_event("flashlight", fl)
+	if not InputMap.has_action("snack"):
+		InputMap.add_action("snack")
+		var sn := InputEventKey.new()
+		sn.physical_keycode = KEY_1
+		InputMap.action_add_event("snack", sn)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -49,6 +65,13 @@ func _ready() -> void:
 	cam.near = 0.03
 	add_child(cam)
 	cam.current = true
+	flash = SpotLight3D.new()
+	flash.light_color = Color(1.0, 0.96, 0.85)
+	flash.light_energy = 3.2
+	flash.spot_range = 18.0
+	flash.spot_angle = 26.0
+	flash.visible = false
+	cam.add_child(flash)
 	ray = RayCast3D.new()
 	ray.target_position = Vector3(0, 0, -REACH)
 	ray.collide_with_areas = true
@@ -61,11 +84,11 @@ func _build_viewmodel() -> void:
 	viewmodel.position = Vector3(0.27, -0.31, -0.55)
 	cam.add_child(viewmodel)
 	var skin := StoreBuilder.mat(Color(0.86, 0.64, 0.47), 0.0, 0.8)
-	var sleeve := StoreBuilder.mat(Color(0.16, 0.28, 0.22), 0.0, 0.9)     # green work shirt
+	sleeve_mat = StoreBuilder.mat(Color(0.16, 0.28, 0.22), 0.0, 0.9).duplicate()
 	var arm := Node3D.new()
 	arm.rotation = Vector3(0.18, 0.42, -0.1)
 	viewmodel.add_child(arm)
-	StoreBuilder.box(arm, Vector3(0.12, 0.12, 0.5), Vector3(0.07, -0.13, 0.32), sleeve)
+	StoreBuilder.box(arm, Vector3(0.12, 0.12, 0.5), Vector3(0.07, -0.13, 0.32), sleeve_mat)
 	StoreBuilder.box(arm, Vector3(0.095, 0.095, 0.26), Vector3(0.04, -0.09, 0.05), skin)     # forearm
 	StoreBuilder.box(arm, Vector3(0.12, 0.12, 0.12), Vector3(0.0, -0.04, -0.09), skin)       # fist
 	for k in 3:
@@ -100,6 +123,21 @@ func use_stock_unit() -> void:
 		set_carry({})
 	else:
 		carry_changed.emit(carrying)
+
+func set_vest(c: Color) -> void:
+	if sleeve_mat:
+		sleeve_mat.albedo_color = c
+
+func eat_boost() -> void:
+	stamina = stamina_max
+	boost_t = 40.0
+
+func _toggle_light() -> void:
+	var g := get_parent()
+	if g and g.has_method("has_flashlight") and not g.has_flashlight() and not has_light:
+		return
+	has_light = true
+	flash.visible = not flash.visible
 
 func drop_carried() -> void:
 	if carrying.is_empty():
@@ -167,6 +205,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		drop_carried()
 	elif event.is_action_pressed("cart"):
 		toggle_cart(null)
+	elif event.is_action_pressed("flashlight"):
+		_toggle_light()
+	elif event.is_action_pressed("snack"):
+		var g := get_parent()
+		if g and g.has_method("eat_snack"):
+			g.eat_snack()
 
 func touch_look(rel: Vector2) -> void:
 	if not controls_enabled:
@@ -267,7 +311,15 @@ func _physics_process(delta: float) -> void:
 			var ht := _target()
 			if ht and ht.has_method("hold_interact"):
 				ht.hold_interact(self, delta)
-	var spd := SPRINT if (Input.is_action_pressed("sprint") or sprint_toggle) else WALK
+	if boost_t > 0.0:
+		boost_t -= delta
+	var want_sprint := Input.is_action_pressed("sprint") or sprint_toggle
+	var sprinting := want_sprint and stamina > 6.0
+	if sprinting:
+		stamina = maxf(0.0, stamina - 22.0 * delta)
+	else:
+		stamina = minf(stamina_max, stamina + 14.0 * delta)
+	var spd := (SPRINT * (1.18 if boost_t > 0.0 else 1.0)) if sprinting else WALK
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()
@@ -285,6 +337,9 @@ func _physics_process(delta: float) -> void:
 		p = t.get_prompt(self)
 	if p == "" and near_cart and near_cart.has_method("get_prompt"):
 		p = near_cart.get_prompt(self)
+	var g2 := get_parent()
+	if g2 and g2.hud:
+		g2.hud.set_stamina(stamina / stamina_max, boost_t > 0.0)
 	if p != _last_prompt:
 		_last_prompt = p
 		prompt_changed.emit(p)

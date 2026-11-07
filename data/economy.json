@@ -1,0 +1,22 @@
+{
+  "payouts": {
+    "trash": 150,
+    "cart": 75,
+    "cart_bonus_mult": 2.0,
+    "fuel_base": 250,
+    "fuel_perfect": 250,
+    "fuel_perfect_cents": 150
+  },
+  "items": [
+    {"id": "gun_locker", "name": "Gun locker key", "desc": "Unlock the emergency locker", "price": 800, "kind": "unlock"},
+    {"id": "ammo", "name": "Shell box", "desc": "8 shells", "price": 250, "kind": "ammo", "amount": 8, "requires": "gun_locker"},
+    {"id": "flashlight", "name": "Flashlight", "desc": "A light for the dark stockroom", "price": 600, "kind": "unlock"},
+    {"id": "fast_ring", "name": "Faster ring-up", "desc": "Ring a whole belt with one tap", "price": 2000, "kind": "unlock"},
+    {"id": "cart_bonus", "name": "Better cart payout", "desc": "Double pay for returned carts", "price": 900, "kind": "unlock"},
+    {"id": "stamina_snack", "name": "Stamina snack", "desc": "Eat it for a sprint boost", "price": 150, "kind": "snack"},
+    {"id": "vest_red", "name": "Red vest", "desc": "Vest color", "price": 200, "kind": "vest", "color": [0.62, 0.1, 0.1]},
+    {"id": "vest_blue", "name": "Blue vest", "desc": "Vest color", "price": 200, "kind": "vest", "color": [0.12, 0.22, 0.55]},
+    {"id": "vest_black", "name": "Black vest", "desc": "Vest color", "price": 200, "kind": "vest", "color": [0.08, 0.08, 0.09]},
+    {"id": "vest_orange", "name": "Orange vest", "desc": "Vest color", "price": 200, "kind": "vest", "color": [0.75, 0.38, 0.08]}
+  ]
+}
