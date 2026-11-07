@@ -1,7 +1,7 @@
 # Progress
 
-## v1.2.1: **80%**
-Stockroom door is open. Draw calls are down and the pause menu has graphics presets. Next: version bump and the one CI build. iOS defaults to Low (10 lights, no MSAA, 0.7 scale, 60 FPS cap).
+## v1.2.1: **100%**
+Stockroom curtain is open and covered by a reach test. Draw calls dropped from about 830 to about 520, and iOS defaults to the Low graphics preset (10 lights, no MSAA, 0.7 render scale, 60 FPS cap). Desktop defaults to High.
 
 ## v1.2: **100%**
 Shipped. One register, bigger store, no scanner, carts, cars, fuel, shop, saves, shotgun, and a smaller touch HUD. `tests/sim_test.gd` covers customers, cars, fuel, carts, and save migration.
