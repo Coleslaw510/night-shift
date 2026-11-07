@@ -23,7 +23,7 @@ func setup(g: Node, dest: Dictionary, fuel: bool) -> void:
 	spot = dest
 	is_fuel = fuel
 	add_to_group("vehicle")
-	sync_to_physics = true
+	sync_to_physics = false
 	_build(COLORS[randi() % COLORS.size()])
 	var gate := _gate()
 	global_position = gate + Vector3(randf_range(-1.5, 1.5), 0, 3.0)
@@ -40,7 +40,7 @@ func place_parked(g: Node, dest: Dictionary, paint: Color) -> void:
 	spot = dest
 	is_fuel = false
 	add_to_group("vehicle")
-	sync_to_physics = true
+	sync_to_physics = false
 	_build(paint)
 	global_position = dest.pos
 	rotation.y = float(dest.yaw)

@@ -32,6 +32,7 @@ var annoyed := 0
 var wants_cart := false
 var my_cart: Node = null
 var my_car: Node = null
+var test_fast := false
 var _return_cart := false
 var _abandon_cart := false
 var _stuck_t := 0.0
@@ -477,6 +478,7 @@ func _unstick() -> void:
 				_give_up("Forget this...")
 		S.LEAVING:
 			if path.is_empty() or _detours >= 3:
+				_leave_car()
 				queue_free()
 			else:
 				path.pop_front()
@@ -529,7 +531,7 @@ func _arrived() -> void:
 			var door_z := StoreBuilder.D * 0.5
 			path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 		S.SHOP:
-			wait_t = randf_range(1.5, 3.0)
+			wait_t = 0.05 if test_fast else randf_range(1.5, 3.0)
 		S.QUEUED:
 			face_dir = Vector3(0, 0, 1)
 			if my_register and my_register.is_front(self):
@@ -543,9 +545,7 @@ func _arrived() -> void:
 				_drop_my_cart()
 				path = _exit_path()
 			else:
-				if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):
-					my_car.depart()
-				my_car = null
+				_leave_car()
 				_drop_my_cart()
 				queue_free()
 
@@ -557,7 +557,13 @@ func _claim_cart() -> void:
 		cart.follow(self)
 		my_cart = cart
 
+func _leave_car() -> void:
+	if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):
+		my_car.depart()
+	my_car = null
+
 func _exit_tree() -> void:
+	_leave_car()
 	if my_cart and is_instance_valid(my_cart) and my_cart.follower == self:
 		my_cart.release()
 	my_cart = null

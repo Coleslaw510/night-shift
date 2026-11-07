@@ -26,7 +26,10 @@ func _ready() -> void:
 	sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.7))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
-	var specs := [["Start Shift", _on_start]]
+	var specs: Array = []
+	if SaveGame.has_save():
+		specs.append(["Continue", _on_continue])
+	specs.append(["New Game", _on_new])
 	if not OS.has_feature("mobile"):
 		specs.append(["Quit", _on_quit])
 	for spec in specs:
@@ -45,7 +48,13 @@ func _ready() -> void:
 	await get_tree().process_frame
 	box.position = (size - box.size) * 0.5
 
-func _on_start() -> void:
+func _on_continue() -> void:
+	SaveGame.boot_mode = "continue"
+	get_tree().change_scene_to_file("res://scenes/main.tscn")
+
+func _on_new() -> void:
+	SaveGame.wipe()
+	SaveGame.boot_mode = "new"
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
 
 func _on_quit() -> void:

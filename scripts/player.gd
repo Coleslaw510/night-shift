@@ -34,6 +34,13 @@ var has_light := false
 var stamina := 100.0
 var stamina_max := 100.0
 var boost_t := 0.0
+var has_gun := false
+var gun_out := false
+var gun_node: Node3D
+var muzzle: MeshInstance3D
+var muzzle_light: OmniLight3D
+var _muzzle_t := 0.0
+const MAG := 6
 
 func _ready() -> void:
 	Settings.load_settings()
@@ -52,6 +59,18 @@ func _ready() -> void:
 		var sn := InputEventKey.new()
 		sn.physical_keycode = KEY_1
 		InputMap.action_add_event("snack", sn)
+	if not InputMap.has_action("gun"):
+		InputMap.add_action("gun")
+		var gn := InputEventKey.new()
+		gn.physical_keycode = KEY_G
+		InputMap.action_add_event("gun", gn)
+	if not InputMap.has_action("reload"):
+		InputMap.add_action("reload")
+		var rl := InputEventKey.new()
+		rl.physical_keycode = KEY_R
+		InputMap.action_add_event("reload", rl)
+	if not InputMap.has_action("fire"):
+		InputMap.add_action("fire")
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -97,6 +116,7 @@ func _build_viewmodel() -> void:
 	carry_node = Node3D.new()
 	carry_node.position = Vector3(-0.2, -0.05, -0.15)
 	viewmodel.add_child(carry_node)
+	_build_gun(arm)
 
 func set_carry(d: Dictionary) -> void:
 	carrying = d
@@ -123,6 +143,99 @@ func use_stock_unit() -> void:
 		set_carry({})
 	else:
 		carry_changed.emit(carrying)
+
+func _build_gun(arm: Node3D) -> void:
+	gun_node = Node3D.new()
+	gun_node.position = Vector3(-0.02, 0.02, -0.12)
+	gun_node.visible = false
+	arm.add_child(gun_node)
+	var metal := StoreBuilder.mat(Color(0.12, 0.12, 0.13), 0.0, 0.35, 0.75)
+	var wood := StoreBuilder.mat(Color(0.42, 0.24, 0.12), 0.0, 0.6)
+	StoreBuilder.box(gun_node, Vector3(0.07, 0.08, 0.55), Vector3(0, 0.02, -0.2), metal)
+	StoreBuilder.box(gun_node, Vector3(0.06, 0.14, 0.16), Vector3(0, -0.06, 0.02), wood)
+	StoreBuilder.box(gun_node, Vector3(0.05, 0.1, 0.08), Vector3(0, -0.08, -0.08), wood)
+	muzzle = StoreBuilder.box(gun_node, Vector3(0.08, 0.08, 0.04), Vector3(0, 0.02, -0.5), StoreBuilder.mat(Color(1, 0.7, 0.2), 6.0))
+	muzzle.visible = false
+	muzzle_light = OmniLight3D.new()
+	muzzle_light.light_color = Color(1, 0.75, 0.35)
+	muzzle_light.light_energy = 4.0
+	muzzle_light.omni_range = 4.5
+	muzzle_light.position = Vector3(0, 0.02, -0.55)
+	muzzle_light.visible = false
+	gun_node.add_child(muzzle_light)
+
+func set_gun_out(on: bool) -> void:
+	if not has_gun:
+		return
+	if on and not carrying.is_empty():
+		return
+	gun_out = on
+	gun_node.visible = on
+	_refresh_gun_hud()
+
+func _refresh_gun_hud() -> void:
+	var g := get_parent()
+	if g == null or g.hud == null:
+		return
+	if gun_out:
+		g.hud.set_status("SHOTGUN", "%d / %d" % [int(g.mag_ammo), int(g.ammo)], int(g.mag_ammo) > 0)
+	elif carrying.is_empty():
+		g.hud.set_status("", "")
+
+func _fire() -> void:
+	var g := get_parent()
+	if g == null or not gun_out or _muzzle_t > 0.0:
+		return
+	if int(g.mag_ammo) <= 0:
+		_play("click")
+		return
+	g.mag_ammo = int(g.mag_ammo) - 1
+	_muzzle_t = 0.05
+	muzzle.visible = true
+	muzzle_light.visible = true
+	_play("gunshot")
+	_refresh_gun_hud()
+	var space := get_world_3d().direct_space_state
+	var dir := -cam.global_transform.basis.z
+	var from := cam.global_position
+	var to := from + dir * 45.0
+	var exclude: Array = [self]
+	for _i in 8:
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.exclude = exclude
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return
+		var col: Object = hit.collider
+		if _is_customer(col):
+			exclude.append(col)
+			from = hit.position + dir * 0.08
+			continue
+		if col.has_method("hit"):
+			col.hit()
+			g.hud.toast("Ping")
+		return
+
+func _is_customer(n: Object) -> bool:
+	var node := n as Node
+	while node:
+		if node is Customer:
+			return true
+		node = node.get_parent()
+	return false
+
+func _reload() -> void:
+	var g := get_parent()
+	if g == null or not has_gun:
+		return
+	var need := MAG - int(g.mag_ammo)
+	if need <= 0 or int(g.ammo) <= 0:
+		return
+	var take := mini(need, int(g.ammo))
+	g.ammo = int(g.ammo) - take
+	g.mag_ammo = int(g.mag_ammo) + take
+	_play("reload")
+	_refresh_gun_hud()
 
 func set_vest(c: Color) -> void:
 	if sleeve_mat:
@@ -193,6 +306,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			g.fuel_stop()
 			return
 		var t := _target()
+		if gun_out and (t == null or not _keeps_interact(t)):
+			_fire()
+			return
 		if not carrying.is_empty():
 			if _valid_place(t):
 				t.interact(self)
@@ -211,6 +327,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		var g := get_parent()
 		if g and g.has_method("eat_snack"):
 			g.eat_snack()
+	elif event.is_action_pressed("gun"):
+		set_gun_out(not gun_out)
+	elif event.is_action_pressed("reload"):
+		_reload()
+	elif event.is_action_pressed("fire"):
+		_fire()
 
 func touch_look(rel: Vector2) -> void:
 	if not controls_enabled:
@@ -236,8 +358,11 @@ func toggle_cart(which: Node3D) -> void:
 	cart.hold(self)
 	holding_cart = cart
 
-func gun_out() -> bool:
-	return false
+func _keeps_interact(t: Node) -> bool:
+	if not ("tag" in t) or not (t.tag is Dictionary):
+		return t.has_method("interact")
+	var kind := str(t.tag.get("kind", ""))
+	return kind in ["register", "shelf", "crate", "can", "dumpster", "back_door", "terminal", "locker"]
 
 func _push_carts() -> void:
 	for i in get_slide_collision_count():
@@ -330,6 +455,15 @@ func _physics_process(delta: float) -> void:
 		_bob += delta * hs * 2.6
 	cam.position.y = 1.62 + sin(_bob * 2.0) * 0.025
 	viewmodel.position = Vector3(0.27 + cos(_bob) * 0.008, -0.31 + absf(sin(_bob)) * 0.01, -0.55)
+	if _muzzle_t > 0.0:
+		_muzzle_t -= delta
+		if _muzzle_t <= 0.0 and muzzle:
+			muzzle.visible = false
+			muzzle_light.visible = false
+	if gun_node:
+		gun_node.visible = gun_out and carrying.is_empty()
+		if not carrying.is_empty():
+			gun_out = false
 	near_cart = holding_cart if holding_cart != null else _nearest_cart()
 	var p := ""
 	var t := _target()

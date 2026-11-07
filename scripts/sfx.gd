@@ -33,6 +33,8 @@ static func get_stream(name: String) -> AudioStreamWAV:
 		"thud": s = _tone([90.0, 60.0], 0.25, 0.6, 12.0)
 		"place": s = _tone([300.0], 0.06, 0.3, 30.0)
 		"hum": s = _hum()
+		"gunshot": s = _gunshot()
+		"reload": s = _tone([520.0, 180.0], 0.12, 0.3, 18.0)
 		_: s = _tone([440.0], 0.1, 0.3, 0.0)
 	_cache[name] = s
 	return s
@@ -60,6 +62,18 @@ static func _chime(freqs: Array, step: float, vol: float) -> AudioStreamWAV:
 		for i in range(start, n):
 			var t := float(i - start) / RATE
 			out[i] += sin(TAU * freqs[k] * t) * exp(-7.0 * t) * vol
+	return _wav(out)
+
+static func _gunshot() -> AudioStreamWAV:
+	var n := int(0.32 * RATE)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	for i in n:
+		var t := float(i) / RATE
+		var env := exp(-14.0 * t)
+		out[i] = (rng.randf_range(-1.0, 1.0) * 0.7 + sin(TAU * 90.0 * t) * 0.5) * env
 	return _wav(out)
 
 static func _hum() -> AudioStreamWAV:

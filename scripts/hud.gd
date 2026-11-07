@@ -141,6 +141,11 @@ func _ready() -> void:
 	var pb := _panel(root, "PAUSED")
 	pause_panel = pb[0]
 	_button(pb[1], "Resume", func(): resume_pressed.emit())
+	_button(pb[1], "Save", func():
+		var g := get_parent()
+		if g and g.has_method("save_progress"):
+			g.save_progress()
+			toast("Saved"))
 	_button(pb[1], "Shop", func():
 		var g := get_parent()
 		if g and g.has_method("open_shop"):

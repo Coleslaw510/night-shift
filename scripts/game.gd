@@ -2,7 +2,7 @@ extends Node3D
 ## Main game controller: builds the store, shelves, HUD, player, registers; spawns customers;
 ## runs the shift clock (10 PM -> 6 AM), doors, trash, stock hints and the end-of-shift summary.
 
-const VERSION := "1.1"
+const VERSION := "1.2"
 const SHIFT_START_MIN := 22 * 60          # 10:00 PM
 const SHIFT_LENGTH_MIN := 8 * 60          # until 6:00 AM
 const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
@@ -40,6 +40,12 @@ var ammo := 0
 var snacks := 0
 var vest := ""
 var shop_from_pause := false
+var shifts_done := 0
+var play_seconds := 0.0
+var mag_ammo := 0
+var sim_mode := false
+var allow_spawn := true
+var cars_departed := 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -110,6 +116,10 @@ func _ready() -> void:
 		tc.player = player
 		add_child(tc)
 	hud.toast("One register, on your right. Stockroom is straight through the back.", 6.0)
+	_spawn_targets()
+	if SaveGame.boot_mode == "continue":
+		_apply_save(SaveGame.read())
+	SaveGame.boot_mode = ""
 	_update_clock()
 	_update_hints()
 
@@ -152,6 +162,7 @@ func toast(t: String) -> void:
 func _process(delta: float) -> void:
 	if get_tree().paused or shift_over:
 		return
+	play_seconds += delta
 	_flicker()
 	_doors(delta)
 	elapsed += delta
@@ -169,7 +180,7 @@ func _process(delta: float) -> void:
 		end_shift()
 		return
 	spawn_t -= delta
-	if spawn_t <= 0.0 and elapsed < SHIFT_REAL_SECONDS * 0.95:
+	if allow_spawn and spawn_t <= 0.0 and elapsed < SHIFT_REAL_SECONDS * 0.95:
 		spawn_t = randf_range(10.0, 22.0)
 		if customers_root.get_child_count() < MAX_CUSTOMERS:
 			if randf() < 0.3 and _free_pump() != null:
@@ -269,7 +280,7 @@ func on_car_at_pump(car: Node) -> void:
 	car.say("...")
 
 func on_car_gone(_car: Node) -> void:
-	pass
+	cars_departed += 1
 
 func fuel_for(car: Node) -> Variant:
 	if fuel_job.is_empty() or fuel_job.get("car") != car:
@@ -386,6 +397,24 @@ func _recover_registers() -> void:
 		elif c.state == Customer.S.AT_REGISTER and r.state == 0:
 			r.customer_at_front(c)
 
+func _spawn_targets() -> void:
+	var spots: Array = [
+		{"p": Vector3(6.5, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
+		{"p": Vector3(7.2, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
+		{"p": Vector3(7.9, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
+		{"p": Vector3(8.6, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "bottle"},
+		{"p": Vector3(16.2, 0.9, -31.2), "k": "bottle"},
+		{"p": Vector3(16.8, 0.9, -31.2), "k": "can"},
+		{"p": Vector3(17.4, 0.9, -31.2), "k": "bottle"},
+	]
+	for s in spots:
+		var t = preload("res://scripts/target.gd").new()
+		add_child(t)
+		t.position = s.p
+		t.setup(s.k)
+	# A crate to sit the back-lot targets on.
+	StoreBuilder.box(self, Vector3(2.6, 0.8, 0.6), Vector3(7.5, 0.4, StoreBuilder.ROOM_Z - 4.5), StoreBuilder.mat(Color(0.45, 0.32, 0.18)), true)
+
 func _spawn_carts() -> void:
 	for slot in store.corral.slots:
 		var c := Cart.new()
@@ -476,8 +505,8 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 			return "[E] %s back door" % ("Close" if back_door_open else "Open")
 		"locker":
 			if owned.has("gun_locker"):
-				return "[E] Gun locker is open"
-			return "LOCKED — buy a key at the back office"
+				return "Gun locker (empty)" if player.has_gun else "[E] Take the shotgun"
+			return "LOCKED - buy a key at the back office"
 		"terminal":
 			return "[E] Back office terminal"
 	return ""
@@ -507,12 +536,17 @@ func on_interact(body: Node, _p: Node) -> void:
 		"back_door":
 			toggle_back_door()
 		"locker":
-			if owned.has("gun_locker"):
-				hud.toast("The locker is open.")
-				play_sfx("click")
-			else:
+			if not owned.has("gun_locker"):
 				hud.toast("It's locked. Buy a key on the back office terminal.")
 				play_sfx("error")
+			elif player.has_gun:
+				hud.toast("You already took the shotgun.")
+			else:
+				player.has_gun = true
+				if ammo == 0 and mag_ammo == 0:
+					ammo = 6
+				hud.toast("Shotgun's yours. G to equip, R to reload. It will not hurt a customer.")
+				play_sfx("click")
 		"terminal":
 			open_shop(false)
 
@@ -605,7 +639,9 @@ func end_shift() -> void:
 	if _change_reg:
 		close_change()
 	shift_over = true
+	shifts_done += 1
 	elapsed = SHIFT_REAL_SECONDS
+	save_progress()
 	_update_clock()
 	player.controls_enabled = false
 	customers_root.process_mode = Node.PROCESS_MODE_DISABLED
@@ -730,7 +766,67 @@ func eat_snack() -> void:
 	if hud.shop_panel.visible:
 		hud.show_shop(_shop_rows())
 
+func save_progress() -> bool:
+	if sim_mode:
+		return false
+	return SaveGame.write(_save_blob())
+
+func _save_blob() -> Dictionary:
+	return {
+		"version": SaveGame.VERSION,
+		"money": int(stats.earnings),
+		"owned": owned.duplicate(),
+		"ammo": ammo,
+		"snacks": snacks,
+		"vest": vest,
+		"mag": mag_ammo,
+		"shifts_done": shifts_done,
+		"play_seconds": play_seconds,
+		"shift_active": not shift_over,
+		"shift_elapsed": elapsed,
+		"stats": stats.duplicate(),
+		"cart_pay_mult": cart_pay_mult,
+	}
+
+func _apply_save(d: Dictionary) -> void:
+	if d.is_empty():
+		return
+	var saved_stats = d.get("stats", {})
+	if typeof(saved_stats) == TYPE_DICTIONARY:
+		for k in saved_stats:
+			stats[k] = saved_stats[k]
+	stats.earnings = int(d.get("money", stats.earnings))
+	var own = d.get("owned", {})
+	if typeof(own) == TYPE_DICTIONARY:
+		owned = own.duplicate()
+	ammo = int(d.get("ammo", 0))
+	snacks = int(d.get("snacks", 0))
+	vest = str(d.get("vest", ""))
+	mag_ammo = int(d.get("mag", 0))
+	shifts_done = int(d.get("shifts_done", 0))
+	play_seconds = float(d.get("play_seconds", 0.0))
+	if owned.has("cart_bonus"):
+		cart_pay_mult = Economy.payout_f("cart_bonus_mult", 2.0)
+	if bool(d.get("shift_active", false)):
+		elapsed = float(d.get("shift_elapsed", 0.0))
+	if hud:
+		hud.set_money(int(stats.earnings))
+	if vest != "" and player:
+		var it := Economy.item(vest)
+		var col: Array = it.get("color", [])
+		if col.size() >= 3:
+			player.set_vest(Color(float(col[0]), float(col[1]), float(col[2])))
+	if player and owned.has("flashlight"):
+		player.has_light = true
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED:
+		save_progress()
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		get_tree().quit()
+
 func _to_menu() -> void:
+	save_progress()
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/menu.tscn")
 
@@ -740,7 +836,15 @@ var test_results := {}
 func debug_tick(frame: int) -> void:
 	if frame == 5:
 		for i in 5:
-			_spawn_walker()
+			var c: Node = _spawn_walker()
+			c.wants_cart = false
+			c.my_cart = null
+			c.speed = 2.6
+			c.stops_left = 1
+			c.test_fast = true
+			c.state = Customer.S.ENTER
+			c.position = Vector3(0, 0, Customer.FRONT_Z)
+			c.path = [Vector3(0, 0, 1.0)]
 		_self_tests()
 	if frame % 15 == 0:
 		for r in registers:
@@ -836,9 +940,9 @@ func debug_pose(shot: String) -> void:
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-6)
 		"fuel":
-			player.position = Vector3(StoreBuilder.FUEL_POS.x - 6.0, 0.05, StoreBuilder.FUEL_POS.z + 6.0)
-			player.rotation.y = deg_to_rad(140)
-			player.cam.rotation.x = deg_to_rad(-6)
+			player.position = Vector3(StoreBuilder.FUEL_POS.x, 0.05, StoreBuilder.FUEL_POS.z + 9.0)
+			player.rotation.y = 0.0
+			player.cam.rotation.x = deg_to_rad(-10)
 
 func BACK_DOOR_POS() -> Vector3:
 	return Vector3(StoreBuilder.BACK_DOOR_X, 0, StoreBuilder.ROOM_Z)
