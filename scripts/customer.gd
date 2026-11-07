@@ -1,8 +1,10 @@
+class_name Customer
 extends Node3D
 ## Low-poly human customer with simple waypoint AI.
 ## States: ENTER -> SHOP -> QUEUED -> AT_REGISTER -> LEAVING.
 ## Movement is kinematic along aisle/corridor waypoints (see HANDOFF.md), no navmesh.
-## Avoids the player and other customers by waiting (with a short timeout for customers).
+## Steers around the player and other customers instead of stopping dead.
+## A per-state failsafe unsticks anyone who stops making progress.
 
 signal finished(customer, paid: bool)
 
@@ -27,7 +29,11 @@ var queue_wait := 0.0
 var phase := 0.0
 var moving := false
 var annoyed := 0
-var blocked_t := 0.0
+var _stuck_t := 0.0
+var _anchor := Vector3.ZERO
+var _detours := 0
+var _avoid_side := 1.0
+var _avoid_lock := 0.0
 var _excuse_said := false
 
 var body: Node3D
@@ -298,25 +304,131 @@ func _give_up(reason := "Forget this...") -> void:
 	finished.emit(self, false)
 
 # ---------- update ----------
-func _blocked(dir: Vector3) -> bool:
+func _others() -> Array:
 	if game == null:
-		return false
-	var others: Array = [game.player]
-	others.append_array(game.customers_root.get_children())
-	for o in others:
-		if o == self or not is_instance_valid(o):
+		return []
+	var others: Array = []
+	if is_instance_valid(game.player):
+		others.append(game.player)
+	if game.customers_root:
+		for c in game.customers_root.get_children():
+			if c != self:
+				others.append(c)
+	return others
+
+func _steer(dir: Vector3) -> Vector3:
+	var steer := dir
+	var side := Vector3(-dir.z, 0.0, dir.x)
+	_avoid_lock = maxf(0.0, _avoid_lock - 0.016)
+	for o in _others():
+		if not is_instance_valid(o):
 			continue
 		var rel: Vector3 = o.global_position - global_position
 		rel.y = 0
+		var dist := rel.length()
+		var rad := 1.05 if o == game.player else 0.78
+		if dist < 0.001 or dist > rad:
+			continue
 		var ahead := rel.dot(dir)
-		var lateral := (rel - dir * ahead).length()
-		if ahead > 0.05 and ahead < 0.85 and lateral < 0.45:
-			if o == game.player:
-				return true
-			# Customers: queue members never push through each other; others give up after 1.5 s.
-			if blocked_t < 1.5 or state == S.QUEUED:
-				return true
-	return false
+		if ahead < -0.25:
+			continue
+		var lat := rel.dot(side)
+		var push := (rad - dist) / rad
+		var away := side if lat <= 0.0 else -side
+		if absf(lat) < 0.08:
+			if _avoid_lock <= 0.0:
+				_avoid_side = 1.0 if randf() < 0.5 else -1.0
+				_avoid_lock = 0.55
+			away = side * _avoid_side
+		steer += away.normalized() * push * 2.2
+		if o == game.player and ahead > 0.15 and absf(lat) < 0.35 and not _excuse_said:
+			_excuse_said = true
+			emote("Excuse me!", Color(1, 0.9, 0.5), 1.2)
+	if steer.length() < 0.001:
+		return dir
+	return steer.normalized()
+
+func _separate() -> void:
+	for o in _others():
+		if not is_instance_valid(o):
+			continue
+		var rel: Vector3 = global_position - o.global_position
+		rel.y = 0
+		var min_d := 0.82 if o == game.player else 0.56
+		var dist := rel.length()
+		if dist < 0.001:
+			global_position += Vector3(0.08, 0, 0.03)
+		elif dist < min_d:
+			global_position += rel.normalized() * (min_d - dist) * 0.7
+	position.y = 0
+
+func _watch_stuck(delta: float) -> void:
+	var waiting: bool = state == S.QUEUED and path.is_empty() and my_register != null and not my_register.is_front(self)
+	var browsing: bool = state == S.SHOP and path.is_empty() and wait_t > 0.0
+	var paying: bool = state == S.AT_REGISTER and my_register != null and my_register.state != 0
+	if waiting or browsing or paying:
+		_anchor = position
+		_stuck_t = 0.0
+		return
+	if position.distance_to(_anchor) > 0.45:
+		_anchor = position
+		_stuck_t = 0.0
+		_detours = 0
+		return
+	_stuck_t += delta
+	var limit := 8.0
+	if state == S.AT_REGISTER:
+		limit = 12.0
+	if state == S.LEAVING:
+		limit = 6.0
+	if _stuck_t < limit:
+		return
+	_stuck_t = 0.0
+	_unstick()
+
+func _unstick() -> void:
+	_detours += 1
+	match state:
+		S.ENTER:
+			if _detours >= 2:
+				position = Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)
+				path.clear()
+				_detours = 0
+				_arrived()
+			else:
+				position += Vector3(1.2 if position.x < StoreBuilder.DOOR_X else -1.2, 0, 0.4)
+		S.SHOP:
+			position += Vector3(0.9 if _detours % 2 == 0 else -0.9, 0, 0.3)
+			if items.is_empty() or stops_left > 0:
+				_next_stop()
+			else:
+				_go_queue()
+			_detours = 0
+		S.QUEUED:
+			if my_register and my_register.is_front(self):
+				var spot: Vector3 = my_register.spot(0)
+				if position.distance_to(spot) < 2.6 or _detours >= 2:
+					position = spot
+					path.clear()
+					_detours = 0
+					_arrived()
+					return
+			if my_register:
+				var idx := maxi(my_register.queue.find(self), 0)
+				path = [my_register.spot(idx)]
+			position += Vector3(0.4, 0, 0.7)
+		S.AT_REGISTER:
+			if my_register and my_register.is_front(self) and my_register.state == 0:
+				my_register.customer_at_front(self)
+				_detours = 0
+			elif _detours >= 3:
+				_give_up("Forget this...")
+		S.LEAVING:
+			if path.is_empty() or _detours >= 3:
+				queue_free()
+			else:
+				path.pop_front()
+				position += Vector3(0.7, 0, 0.7)
 
 func _process(delta: float) -> void:
 	moving = false
@@ -324,33 +436,34 @@ func _process(delta: float) -> void:
 		_emote_t -= delta
 		if _emote_t <= 0.0:
 			emote_label.visible = false
+			_excuse_said = false
+	if (state == S.QUEUED or state == S.AT_REGISTER) and queue_wait <= PATIENCE:
+		queue_wait += delta
+		if queue_wait > PATIENCE:
+			_give_up("Too slow!")
+			return
 	if not path.is_empty():
 		var tgt: Vector3 = path[0]
 		var d := tgt - position
 		d.y = 0
 		var step := speed * delta
-		if d.length() <= step:
+		if d.length() <= maxf(step, 0.04):
 			position = Vector3(tgt.x, 0, tgt.z)
 			path.pop_front()
 			if path.is_empty():
 				_arrived()
 		else:
 			var dir := d.normalized()
-			if _blocked(dir):
-				blocked_t += delta
-				if blocked_t > 3.0 and not _excuse_said and game and game.player.global_position.distance_to(global_position) < 1.2:
-					_excuse_said = true
-					emote("Excuse me!", Color(1, 0.9, 0.5))
-			else:
-				blocked_t = 0.0
-				_excuse_said = false
-				position += dir * step
-				moving = true
+			var steer := dir if d.length() < 0.4 else _steer(dir)
+			position += steer * step
+			moving = true
 			rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, 10 * delta))
+		_separate()
 	else:
 		if face_dir != Vector3.ZERO:
 			rotation.y = lerp_angle(rotation.y, atan2(face_dir.x, face_dir.z), minf(1.0, 6 * delta))
 		_idle(delta)
+	_watch_stuck(delta)
 	_animate(delta)
 
 func _arrived() -> void:
@@ -399,11 +512,6 @@ func _idle(delta: float) -> void:
 						_give_up("Nothing I wanted...")
 					else:
 						_go_queue()
-		S.QUEUED, S.AT_REGISTER:
-			queue_wait += delta
-			if queue_wait > PATIENCE:
-				_give_up("Too slow!")
-
 func _go_queue() -> void:
 	var best: Node = null
 	for r in registers:

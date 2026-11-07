@@ -64,6 +64,12 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ## Status
 <!-- STATUS-START -->
+### v1.2 (in progress)
+- [x] Customer avoidance: they steer around each other and the player instead of freezing in contact. Queue spots are unique (the line folds instead of stacking on one point).
+- [x] Failsafe: a customer who makes no progress in a state is nudged, rerouted, snapped to the register if they are first in line, or forced to leave. Patience still runs while they are blocked, so nobody waits forever.
+- [ ] One register, bigger store, no scanner, carts, cars, fuel, shop, save, gun, touch HUD.
+- Version string is still 1.1.1 until the final 1.2 build.
+
 ### v1.1.1 (iPhone)
 - [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
 - [x] Phone HUD: landscape only (`display/window/handheld/orientation=4`), safe-area margins (`Hud.safe_rect`), UI scale 1.3, scanner status moved to the top center.

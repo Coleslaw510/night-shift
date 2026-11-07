@@ -137,6 +137,7 @@ func _process(delta: float) -> void:
 	_update_clock()
 	trash = minf(trash + delta / TRASH_FILL_SECONDS, 1.2)
 	_update_can()
+	_recover_registers()
 	_hint_t -= delta
 	if _hint_t <= 0.0:
 		_hint_t = 0.5
@@ -198,6 +199,16 @@ func _on_change_confirmed(given: int) -> void:
 	if _change_reg:
 		_change_reg.finish_cash(given)
 	close_change()
+
+func _recover_registers() -> void:
+	for r in registers:
+		var c: Node = r.front()
+		if c == null or not is_instance_valid(c):
+			continue
+		if c.state == Customer.S.QUEUED and c.path.is_empty() and c.global_position.distance_to(r.spot(0)) < 1.15:
+			c._arrived()
+		elif c.state == Customer.S.AT_REGISTER and r.state == 0:
+			r.customer_at_front(c)
 
 func _on_customer_finished(_c: Node, did_pay: bool) -> void:
 	if not did_pay:

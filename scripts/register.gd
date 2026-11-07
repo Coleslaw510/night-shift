@@ -22,6 +22,8 @@ var state := R.IDLE
 var payment := {}                 # {"method", "cash"}
 var game: Node
 var _flash := 0.0
+var head_z := 6.2
+var queue_min_z := 3.5
 
 func setup(lane: Dictionary, g: Node) -> void:
 	game = g
@@ -39,7 +41,15 @@ func queue_size() -> int:
 	return queue.size()
 
 func spot(i: int) -> Vector3:
-	return Vector3(lane_x, 0, 6.2 - 1.15 * mini(i, 4))
+	# One spot per person. The line runs back toward the aisles, then folds
+	# sideways so nobody is ever assigned the same point (that froze the queue).
+	var spacing := 1.35
+	var straight := maxi(int((head_z - queue_min_z) / spacing), 1)
+	if i <= straight:
+		return Vector3(lane_x, 0, head_z - spacing * float(i))
+	var k := i - straight
+	var side := -1.0 if lane_x < counter_x else 1.0
+	return Vector3(lane_x + side * spacing * float(k), 0, queue_min_z)
 
 func join(c: Node) -> Vector3:
 	queue.append(c)
