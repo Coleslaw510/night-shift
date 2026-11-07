@@ -62,6 +62,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] (d) Customers
 - [x] (e) Register / checkout + earnings
 - [x] (f) Shift clock + summary + menu
+- [x] CI green: run 42333935839 (Windows zip 33 MB, Mac zip 58 MB)
 - [ ] Next: multiplayer (see Roadmap #1)
 <!-- STATUS-END -->
 
