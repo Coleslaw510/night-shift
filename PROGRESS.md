@@ -1,3 +1,3 @@
 # Baseline progress
 
-**15%** — step (a) repo, skeleton, HANDOFF, CI done. Next: (b) store layout + lighting + HUD.
+**30%** — (a) skeleton/CI and (b) store layout, lighting, HUD done. Next: (c) player movement.
