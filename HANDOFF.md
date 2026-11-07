@@ -21,7 +21,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
   not notarized). Artifacts: `NightShift-Windows`, `NightShift-Mac`.
 
 ## Build / run
-- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.1.1-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+.
+- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.2-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 4.
 - Open the folder in Godot 4.4.1 and press F5. Main scene: `scenes/menu.tscn`.
 - Smoke test: `godot --headless --import && godot --headless --script res://tests/smoke_test.gd`
   (fails CI on any `SCRIPT ERROR` line or non-zero exit).
@@ -72,8 +72,11 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Shopping carts (`scripts/cart.gd`): eight start in the corral. Customers fetch one, and some abandon them in the lot. The player grabs (E or C), pushes, shoves, and can ride one up the rear ramp. Returning a player-moved cart to the corral pays $0.75.
 - [x] Cars (`scripts/vehicle.gd`): shoppers drive in from the front gate, park, walk in, and drive off when they leave. About 30% of spawns are fuel customers. They stop under the pump lights. USE the car to hear a dollar amount or "fill it up", USE again to run the meter, USE to stop. Pay scales with accuracy. A pump gives up after 75s so the bay never sticks.
 - [x] Shop (`data/economy.json`, `scripts/economy.gd`): back-office terminal and a pause-menu Shop button. Buys the locker key, ammo, flashlight (F), faster ring-up, double cart pay, stamina snacks (1 to eat), and vest colors. Sprint now uses a stamina bar.
-- [ ] Save / continue, gun, touch HUD, headless sim proofs, version bump.
-- Version string is still 1.1.1 until the final 1.2 build.
+- [x] Saves (`scripts/save_game.gd`): pause Save, autosave at shift end and on background/quit, version 2 with two backups. A version-1 file (`earnings` only, as from 1.1.1) migrates. Title screen is Continue / New Game.
+- [x] Shotgun from the unlocked locker. G equips, R reloads, click or FIRE shoots the center of the screen. Muzzle flash and a synthesized shot. Practice cans and bottles out back and in the stockroom. The ray never hits a customer.
+- [x] Touch HUD shrunk. No PUT BACK, no JUMP. RUN is a small button at the top left. Pause is top right and does not overlap it. CART, GUN, FIRE, LIGHT, and EAT show up only when they apply.
+- [x] Headless sim (`tests/sim_test.gd`): several in-game minutes, customers all served, cars leave, a fuel job pays, a cart is returned, save/load and v1 migrate pass.
+- Version is 1.2. iOS build number is 4. CI builds Windows, Mac, and the unsigned IPA on this branch.
 
 ### v1.1.1 (iPhone)
 - [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
@@ -101,9 +104,13 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [ ] Next: multiplayer + proximity voice (Roadmap #1-2)
 <!-- STATUS-END -->
 
-### Known issues / rough edges (1.1)
+### Known issues / rough edges (1.2)
 - iPhone: touch tuning and frame rate are not playtested on real hardware. Unsigned IPA must be signed by the sideloader (Signulous).
 - Customers are kinematic (waypoints plus steering). They sidestep the player and each other. A failsafe unsticks a state that stops making progress.
+- A mid-shift save restores money, purchases, and the clock. It does not restore live customers, carts, or cars.
+- The shotgun cannot hurt customers. Practice targets are the only thing it knocks over.
+- Cars follow a short waypoint path and stop if you're in front of them. They creep past after a few seconds so a blocked lane doesn't last forever.
+- iPhone touch layout is sized for landscape with the safe area, and has not been playtested on a device. The IPA is unsigned. The simulator link step can still fail on MetalFX (continue-on-error).
 - Freezer items never run out (only aisle shelves are stockable).
 - Product labels are colored stripes, not real text. Crate labels in the stockroom are text.
 - Tuning (spawn 10-22 s, max 7 customers, patience 150 s, trash fill 150 s) has not been playtested.
