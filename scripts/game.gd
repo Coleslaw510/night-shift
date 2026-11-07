@@ -115,7 +115,7 @@ func _ready() -> void:
 		tc.game = self
 		tc.player = player
 		add_child(tc)
-	hud.toast("One register, on your right. Stockroom is straight through the back.", 6.0)
+	hud.toast("One register on your right. Employees door is the strip curtain on the back-left wall.", 6.0)
 	_spawn_targets()
 	if SaveGame.boot_mode == "continue":
 		_apply_save(SaveGame.read())
@@ -901,6 +901,54 @@ func _self_tests() -> void:
 	# doors + locker prompt
 	toggle_back_door()
 	test_results["locker"] = get_prompt_for(store.locker, player).begins_with("LOCKED")
+
+func debug_open_routes() -> void:
+	front_open = 1.0
+	var fd: Dictionary = store.front_door
+	for i in 2:
+		var p: Node3D = fd.panels[i]
+		p.position.x = fd.open_x[i]
+	back_door_open = true
+	var hinge: Node3D = store.back_door.hinge
+	hinge.rotation.y = PI * 0.5
+
+## Returns "" when every waypoint segment is clear at chest and knee height.
+## A blocked segment names the collider so a sealed doorway shows up in CI.
+func debug_route_block() -> String:
+	var space := get_world_3d().direct_space_state
+	var door_x := StoreBuilder.STOCK_DOOR_X
+	var desk := Vector3(-4.6, 1.0, -17.0)
+	var routes: Array = [
+		["stockroom", [Vector3(0, 1, 8), Vector3(0, 1, -13.2), Vector3(door_x, 1, -13.2), Vector3(door_x, 1, -15.2), Vector3(door_x, 1, -18.5)]],
+		["back office", [Vector3(door_x, 1, -18.0), desk]],
+		["gun locker", [Vector3(door_x, 1, -18.5), Vector3(-18.0, 1, -20.0), Vector3(-18.0, 1, -30.0)]],
+		["back door", [Vector3(0, 1, -22.0), Vector3(0, 1, -28.0), Vector3(10, 1, -32.0), Vector3(StoreBuilder.BACK_DOOR_X, 1, -33.2), Vector3(StoreBuilder.BACK_DOOR_X, 1, -36.0)]],
+		["dumpster", [Vector3(StoreBuilder.BACK_DOOR_X, 1, -36.0), Vector3(StoreBuilder.BACK_DOOR_X - 3.0, 1, StoreBuilder.ROOM_Z - 2.2)]],
+		["front door", [Vector3(0, 1, 18), Vector3(0, 1, 26)]],
+		["fuel bay", [Vector3(0, 1, 28), Vector3(0, 1, 44), Vector3(24, 1, 44), Vector3(StoreBuilder.FUEL_POS.x, 1, 42), Vector3(StoreBuilder.FUEL_POS.x, 1, StoreBuilder.FUEL_POS.z + 4.0)]],
+	]
+	for route in routes:
+		var name: String = route[0]
+		var pts: Array = route[1]
+		for i in pts.size() - 1:
+			for height in [0.55, 1.15]:
+				var a: Vector3 = pts[i]
+				var b: Vector3 = pts[i + 1]
+				a.y = height
+				b.y = height
+				var q := PhysicsRayQueryParameters3D.create(a, b)
+				q.collide_with_areas = false
+				var hit := space.intersect_ray(q)
+				if not hit.is_empty():
+					var col: Object = hit.collider
+					var who := "body"
+					if col is Node:
+						who = str(col.name)
+						var p: Node = col.get_parent()
+						if p:
+							who = "%s/%s" % [p.name, col.name]
+					return "%s blocked %s -> %s by %s" % [name, a, b, who]
+	return ""
 
 func debug_report() -> bool:
 	print("SMOKE: spawned=%d stats=%s tests=%s clock=%s over=%s" % [spawned, stats, test_results, clock_text(), shift_over])

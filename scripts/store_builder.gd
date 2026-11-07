@@ -18,7 +18,7 @@ const COUNTER_Z := 14.5
 const QUEUE_HEAD_Z := 13.0
 const QUEUE_MIN_Z := 9.0
 const DOOR_X := 0.0                    # front automatic door, centered
-const STOCK_DOOR_X := 0.0              # doorway into the stockroom
+const STOCK_DOOR_X := -14.3            # doorway into the stockroom (left aisle; the freezer blocks x=0)
 const BACK_DOOR_X := 14.0              # stockroom back door to the back lot
 const ZB := -16.0                      # store back wall (inner face); front wall is at +D/2
 const ROOM_Z := -34.0                  # stockroom back wall (18 m deep, full width)
@@ -239,12 +239,20 @@ static func _walls(store: Node3D, out: Dictionary) -> void:
 	while z <= hd + 0.01:
 		box(store, Vector3(0.24, 1.9, 0.14), Vector3(-hw - 0.1, 1.85, z), frame)
 		z += 3.0
-	# Back wall with stockroom doorway (gap STOCK_DOOR_X +- 1.4)
-	_wall_seg(store, Vector3(-hw, 0, ZB - 0.1), Vector3(STOCK_DOOR_X - 1.4, 0, ZB - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X + 1.4, 0, ZB - 0.1), Vector3(hw, 0, ZB - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X - 1.4, 0, ZB - 0.1), Vector3(STOCK_DOOR_X + 1.4, 0, ZB - 0.1), wall, H - 2.6, 2.6)
-	box(store, Vector3(2.2, 0.25, 0.05), Vector3(STOCK_DOOR_X, 2.9, ZB + 0.02), mat(Color(0.75, 0.1, 0.08), 1.2))
-	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.9, ZB + 0.05), 40, Color(1, 0.95, 0.9))
+	# Back wall. The opening is in the left aisle, clear of the freezer (which sits on x=0).
+	var door_half := 1.05
+	_wall_seg(store, Vector3(-hw, 0, ZB - 0.1), Vector3(STOCK_DOOR_X - door_half, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X + door_half, 0, ZB - 0.1), Vector3(hw, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X - door_half, 0, ZB - 0.1), Vector3(STOCK_DOOR_X + door_half, 0, ZB - 0.1), wall, H - 2.35, 2.35)
+	box(store, Vector3(door_half * 2.0 + 0.3, 0.22, 0.08), Vector3(STOCK_DOOR_X, 2.5, ZB - 0.05), mat(Color(0.22, 0.2, 0.16)))
+	# Strip curtain: visible, no collider, so the player and customers walk straight through.
+	var strip := mat(Color(0.45, 0.42, 0.18, 0.55), 0.0, 0.4)
+	var sx := STOCK_DOOR_X - door_half + 0.18
+	while sx < STOCK_DOOR_X + door_half - 0.05:
+		box(store, Vector3(0.1, 2.15, 0.02), Vector3(sx, 1.15, ZB - 0.02), strip)
+		sx += 0.28
+	box(store, Vector3(2.0, 0.22, 0.05), Vector3(STOCK_DOOR_X, 2.85, ZB + 0.04), mat(Color(0.75, 0.1, 0.08), 1.2))
+	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.85, ZB + 0.08), 40, Color(1, 0.95, 0.9))
 	# Front storefront: real glass both sides of the door gap
 	var g0 := DOOR_X - 1.15
 	var g1 := DOOR_X + 1.15

@@ -58,7 +58,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - Freezer: glass-door case on the back wall, about 12 m wide.
 - One checkout: counter at x 4.7, z ~14.5. The queue is at x 3.15 and folds sideways if it gets long (`QUEUE_HEAD_Z` / `QUEUE_MIN_Z`). Cashier stands on the +X side of the counter.
 - Front automatic sliding door at x = 0 (z = 23). Glass storefront plus a left-wall window band.
-- Stockroom: full width x -20..20, z -16..-34 (18 m deep). Lit only down the middle (two spotlights). Dark corners have empty racks. Stock crates sit just inside the employee door (x = 0). Gun locker is in the west dark corner. Back-office desk near the door. Swinging back door at x = 14, z = -34.
+- Stockroom: full width x -20..20, z -16..-34 (18 m deep). Lit only down the middle (two spotlights). Dark corners have empty racks. The employee entrance is a strip curtain in the left aisle (`STOCK_DOOR_X` -14.3), clear of the freezer. Gun locker is on the west wall. Back-office desk is just inside, toward the center. Swinging back door at x = 14, z = -34.
 - Outside: lot fenced at x -42..42, z -48..48, with a driveway gap in the front fence (x -5..5). Parking rows at z 32 and 39.5. Cart corral at (-8, 28). Fuel bay at (32, 31), dark except the pump lights. Dumpster in the back lot.
 - Trash can at (8.6, 19.2).
 
@@ -77,6 +77,11 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Touch HUD shrunk. No PUT BACK, no JUMP. RUN is a small button at the top left. Pause is top right and does not overlap it. CART, GUN, FIRE, LIGHT, and EAT show up only when they apply.
 - [x] Headless sim (`tests/sim_test.gd`): several in-game minutes, customers all served, cars leave, a fuel job pays, a cart is returned, save/load and v1 migrate pass.
 - Version is 1.2. iOS build number is 4. CI builds Windows, Mac, and the unsigned IPA on this branch.
+
+### v1.2.1 (in progress)
+- [x] Employee entrance is a real opening with a strip curtain on the back-left wall. The freezer no longer seals it. `tests/reach_test.gd` ray-checks the stockroom, back office, gun locker, back door, dumpster, front door, and fuel bay.
+- [ ] iPhone performance: fewer draw calls and lights, plus a Graphics menu (Low/Medium/High/Ultra, render scale, FPS cap, FPS counter).
+- Version string stays 1.2 until the final 1.2.1 build.
 
 ### v1.1.1 (iPhone)
 - [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
