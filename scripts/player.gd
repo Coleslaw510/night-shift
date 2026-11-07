@@ -208,9 +208,13 @@ func _fire() -> void:
 			return
 		var col: Object = hit.collider
 		if _is_customer(col):
-			exclude.append(col)
-			from = hit.position + dir * 0.08
-			continue
+			var cn := col as Node
+			while cn and not cn.has_method("hit"):
+				cn = cn.get_parent()
+			if cn and cn.has_method("hit"):
+				cn.hit()
+				g.hud.toast("Hit")
+			return
 		if col.has_method("hit"):
 			col.hit()
 			g.hud.toast("Ping")

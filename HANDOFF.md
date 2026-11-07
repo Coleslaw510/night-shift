@@ -83,6 +83,16 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Performance: shelf price tags, the ceiling grid, fence posts, and shelf frames are batched (draw calls about 830 → about 520 on the desktop profile). Graphics presets live in the pause menu: Low / Medium / High / Ultra, a render-scale slider, an FPS cap (30 / 60 / unlimited), and an FPS counter. Low keeps about 10 lights, no MSAA, no bloom, a slightly thicker fog, and hides far shelf rows. iOS defaults to Low with a 60 FPS cap. Desktop defaults to High, with Ultra available. The choice is saved in `user://settings.cfg`.
 - Version is 1.2.1. iOS build number is 5.
 
+### v1.3.0 (in progress)
+- [x] Expanded, darker back-room footprint with long rack rows for a sprawling restock area.
+- [x] Monster prototype patrols the back rooms and can chase/attack the player. Shotgun hits remove it.
+- [x] Shotgun can be picked up from the checkout counter as well as the back locker.
+- [x] Shotgun targets customers and breaks their low-poly body into pieces.
+- [x] iOS pause overlay keeps its pause button available so the menu can be closed.
+- [x] Freezer aisle has an interact surface and open/close feedback.
+- [ ] Drivable customer cars and collision damage.
+- [ ] Criminal customer AI and full freezer inventory loop.
+
 ### v1.2.2
 - [x] Low was dark because it kept about 10 omni lights (the center aisle, freezer, stockroom spots, and pumps) and turned the rest off, with ambient at 0.24 and no bloom. Side aisles had almost no light.
 - [x] Every preset now shares the same base: warmer ambient, one directional fill, and an emissive sales-floor ceiling. Accent omnis, MSAA, and shadows are the only things higher presets add. A saved Brightness slider scales that base.
@@ -143,6 +153,6 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 ## Notes for any AI picking this up
 - Cole has limited usage: small focused steps, commit + push after each, `[skip ci]` on WIP.
 - Keep everything original (no assets ripped from other games). Primitive meshes are fine.
-- Keep the repo **private**. Ask Cole before publishing anything or spending money.
+- Keep the repo **private**. Ask Cole before publishing anything or spending money. The repository is temporarily public for this handoff; restore private visibility when convenient.
 - Test locally with the headless smoke test before pushing; CI greps for `SCRIPT ERROR`.
 - Mac builds are unsigned/not notarized — friends use right-click > Open or `xattr`.

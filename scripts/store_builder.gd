@@ -21,7 +21,7 @@ const DOOR_X := 0.0                    # front automatic door, centered
 const STOCK_DOOR_X := -14.3            # doorway into the stockroom (left aisle; the freezer blocks x=0)
 const BACK_DOOR_X := 14.0              # stockroom back door to the back lot
 const ZB := -16.0                      # store back wall (inner face); front wall is at +D/2
-const ROOM_Z := -34.0                  # stockroom back wall (18 m deep, full width)
+const ROOM_Z := -44.0                  # stockroom back wall (18 m deep, full width)
 const FENCE := Rect2(-42, -48, 84, 96) # lot x -42..42, z -48..48
 const CORRAL_POS := Vector3(-8.0, 0, 28.0)
 const FUEL_POS := Vector3(32.0, 0, 31.0)
@@ -144,7 +144,7 @@ static func build(root: Node3D, target: Object) -> Dictionary:
 	_floor_and_ceiling(store)
 	_walls(store, out)
 	_lights(store, out)
-	_freezer(store, out)
+	_freezer(store, out, target)
 	_checkouts(store, out, target)
 	_stockroom(store, out, target)
 	_outside(store, out, target)
@@ -330,7 +330,7 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 			var tier := 2
 			_add_light(store, out, l, tier, l.omni_range)
 
-static func _freezer(store: Node3D, out: Dictionary) -> void:
+static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	var z := ZB + 0.6
 	var body := mat(Color(0.22, 0.22, 0.24), 0.0, 0.5, 0.4)
 	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
@@ -371,6 +371,8 @@ static func _freezer(store: Node3D, out: Dictionary) -> void:
 	# "FREEZER AISLE ->" sign (dark plate, light text)
 	box(store, Vector3(6.2, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
 	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
+	# Broad interact surface for the freezer doors on desktop and touch.
+	out.freezer = Interact.make(store, Vector3(11.8, 2.0, 0.9), Vector3(0, 1.15, z + 0.58), target, {"kind": "freezer"})
 
 static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
@@ -532,6 +534,13 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 		var it := Interact.make(store, Vector3(0.62, 0.45, 0.5), pos + Vector3(0, 0.21, 0), target, {"kind": "crate", "product": items[j]})
 		out.crates.append(it)
 	label(store, "STOCK - grab a box (E)", Vector3(0, 2.55, rack_z + 0.5), 48, Color(1, 0.9, 0.6))
+	# Long rack rows make the back room feel sprawling and create sightline breaks.
+	for rz in [-25.0, -31.0, -37.0, -41.0]:
+		for rx in [-12.0, -4.0, 4.0, 12.0]:
+			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 1.35, rz), orange)
+			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 0.35, rz), orange)
+			for ux in [-2.8, 2.8]:
+				box(store, Vector3(0.08, 2.5, 0.7), Vector3(rx + ux, 1.2, rz), steel)
 	# Empty racks in the dark corners (somewhere for a monster to stand later)
 	for corner in [Vector3(-16.5, 0, -31.5), Vector3(16.5, 0, -31.0)]:
 		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 1.3, 0), orange)

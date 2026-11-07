@@ -80,7 +80,7 @@ func _process(_d: float) -> void:
 	if sig != _sig and visible:
 		_sig = sig
 		_layout()
-	var want: bool = game != null and not get_tree().paused and not game.shift_over and game._change_reg == null and not game.hud.shop_panel.visible
+	var want: bool = game != null and not game.shift_over and game._change_reg == null and (not get_tree().paused or game.hud.pause_panel.visible) and not game.hud.shop_panel.visible
 	if want != visible:
 		visible = want
 		if not want:
@@ -101,6 +101,11 @@ func _send(action: String, down: bool) -> void:
 	Input.parse_input_event(ev)
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and game and get_tree().paused:
+		if event.pressed and _button_at(event.position).get("name", "") == "pause":
+			game.set_paused(false)
+			get_viewport().set_input_as_handled()
+		return
 	if not _active():
 		return
 	if event is InputEventScreenTouch:

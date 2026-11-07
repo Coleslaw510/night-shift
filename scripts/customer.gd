@@ -663,3 +663,26 @@ func _animate(delta: float) -> void:
 		arm_r.rotation.x = lerp(arm_r.rotation.x, 0.0, w)
 		if not (state == S.SHOP and wait_t > 0.0):
 			arm_l.rotation.x = lerp(arm_l.rotation.x, 0.0, w)
+
+
+func hit() -> void:
+	if state == S.LEAVING:
+		return
+	if my_register:
+		my_register.leave(self)
+	_drop_my_cart()
+	finished.emit(self, false)
+	for part in [body, leg_l, leg_r, arm_l, arm_r]:
+		if is_instance_valid(part):
+			part.reparent(get_parent())
+			var dir := Vector3(randf_range(-2.0, 2.0), randf_range(1.0, 3.0), randf_range(-2.0, 2.0))
+			var tw := create_tween()
+			tw.set_parallel(true)
+			tw.tween_property(part, "position", part.position + dir, 0.55)
+			tw.tween_property(part, "rotation", Vector3(randf(), randf(), randf()) * 4.0, 0.55)
+			tw.set_parallel(false)
+			tw.tween_callback(part.queue_free)
+	var g := game
+	if g and g.hud:
+		g.hud.toast("Customer down. Call it a very bad shopping trip.")
+	queue_free()

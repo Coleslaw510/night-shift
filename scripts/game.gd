@@ -2,7 +2,7 @@ extends Node3D
 ## Main game controller: builds the store, shelves, HUD, player, registers; spawns customers;
 ## runs the shift clock (10 PM -> 6 AM), doors, trash, stock hints and the end-of-shift summary.
 
-const VERSION := "1.2.2"
+const VERSION := "1.3.0"
 const SHIFT_START_MIN := 22 * 60          # 10:00 PM
 const SHIFT_LENGTH_MIN := 8 * 60          # until 6:00 AM
 const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
@@ -28,6 +28,7 @@ var spawned := 0
 var spawn_t := 3.0
 var trash := 0.35
 var back_door_open := false
+var freezer_open := false
 var front_open := 0.0
 var _hint_t := 0.0
 var _cull_t := 0.0
@@ -45,6 +46,8 @@ var shop_from_pause := false
 var shifts_done := 0
 var play_seconds := 0.0
 var mag_ammo := 0
+var monster: Node = null
+var monster_t := 0.0
 var sim_mode := false
 var allow_spawn := true
 var cars_departed := 0
@@ -171,6 +174,9 @@ func _process(delta: float) -> void:
 	if _hint_t <= 0.0:
 		_hint_t = 0.5
 		_update_hints()
+	monster_t += delta
+	if monster == null and elapsed >= 45.0:
+		_spawn_monster()
 	if elapsed >= SHIFT_REAL_SECONDS:
 		end_shift()
 		return
@@ -182,6 +188,24 @@ func _process(delta: float) -> void:
 				spawn_fuel_car()
 			else:
 				spawn_customer()
+
+func _spawn_monster() -> void:
+	if monster != null:
+		return
+	monster = preload("res://scripts/monster.gd").new()
+	monster.name = "TheBackroomThing"
+	add_child(monster)
+	monster.global_position = Vector3(-17, 0, -22)
+	monster.setup(self, player)
+	hud.toast("Something is moving in the back rooms.", 5.0)
+
+func monster_attack(_m: Node) -> void:
+	if player == null or shift_over:
+		return
+	hud.toast("RUN. It found you.", 3.0)
+	stats.earnings = maxi(0, int(stats.earnings) - 100)
+	hud.set_money(stats.earnings)
+	player.global_position = Vector3(6.6, 0.05, 15.4)
 
 func spawn_customer() -> Node:
 	var spot: Variant = _take_spot()
@@ -500,6 +524,10 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 			return "Dumpster"
 		"back_door":
 			return "[E] %s back door" % ("Close" if back_door_open else "Open")
+		"freezer":
+			return "[E] Close freezer doors" if freezer_open else "[E] Open freezer doors"
+		"checkout_gun":
+			return "[E] Take the emergency shotgun" if not player.has_gun else "Emergency shotgun (empty)"
 		"locker":
 			if owned.has("gun_locker"):
 				return "Gun locker (empty)" if player.has_gun else "[E] Take the shotgun"
@@ -532,6 +560,19 @@ func on_interact(body: Node, _p: Node) -> void:
 				play_sfx("thud")
 		"back_door":
 			toggle_back_door()
+		"freezer":
+			freezer_open = not freezer_open
+			hud.toast("Freezer doors %s — frozen goods are stocked here." % ("open" if freezer_open else "closed"))
+			play_sfx("click")
+		"checkout_gun":
+			if player.has_gun:
+				hud.toast("You already took the shotgun.")
+			else:
+				player.has_gun = true
+				if ammo == 0 and mag_ammo == 0:
+					ammo = 6
+				hud.toast("Emergency shotgun ready. G to equip.")
+				play_sfx("click")
 		"locker":
 			if not owned.has("gun_locker"):
 				hud.toast("It's locked. Buy a key on the back office terminal.")
@@ -542,7 +583,7 @@ func on_interact(body: Node, _p: Node) -> void:
 				player.has_gun = true
 				if ammo == 0 and mag_ammo == 0:
 					ammo = 6
-				hud.toast("Shotgun's yours. G to equip, R to reload. It will not hurt a customer.")
+				hud.toast("Shotgun's yours. G to equip, R to reload. Keep it pointed at trouble.")
 				play_sfx("click")
 		"terminal":
 			open_shop(false)

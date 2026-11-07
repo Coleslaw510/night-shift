@@ -1,4 +1,4 @@
-# Night Shift (v1.2.2)
+# Night Shift (v1.3.0)
 
 Work the night shift at a creepy little 24-hour supermarket. One register, a bigger
 aisle, carts, a parking lot, and a fuel bay out back of the lights. (Single player for now.)
