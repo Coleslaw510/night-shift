@@ -573,9 +573,6 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		for x in xs:
 			box(store, Vector3(0.1, 0.01, 4.6), Vector3(x, -0.015, row_z), line)
 			out.parking.append({"pos": Vector3(x, 0, row_z), "yaw": PI})
-	# a couple of parked cars so the lot isn't empty before anyone drives in
-	_car(store, Vector3(-18.0, 0, 32.0), Color(0.5, 0.08, 0.08), PI)
-	_car(store, Vector3(13.0, 0, 32.0), Color(0.18, 0.25, 0.35), PI)
 	_fuel_station(store, out)
 	_corral(store, out)
 	# street lamps — none in the fuel bay, so that corner stays dark except the pumps

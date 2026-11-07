@@ -150,6 +150,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not touch_mode and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
+		var g := get_parent()
+		if g and g.has_method("fuel_is_running") and g.fuel_is_running():
+			g.fuel_stop()
+			return
 		var t := _target()
 		if not carrying.is_empty():
 			if _valid_place(t):

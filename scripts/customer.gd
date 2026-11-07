@@ -31,6 +31,7 @@ var moving := false
 var annoyed := 0
 var wants_cart := false
 var my_cart: Node = null
+var my_car: Node = null
 var _return_cart := false
 var _abandon_cart := false
 var _stuck_t := 0.0
@@ -297,6 +298,9 @@ func choose_payment(total: int) -> Dictionary:
 
 func _exit_path() -> Array:
 	var door_z := StoreBuilder.D * 0.5
+	if my_car and is_instance_valid(my_car) and my_car.has_method("door_position"):
+		var door: Vector3 = my_car.door_position()
+		return [Vector3(door.x, 0, door_z + 2.5), door]
 	return [Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)]
 
 func _drop_my_cart() -> void:
@@ -333,9 +337,8 @@ func _give_up(reason := "Forget this...") -> void:
 	state = S.LEAVING
 	clear_basket()
 	emote(reason)
-	var door_z := StoreBuilder.D * 0.5
 	path = _path_to(Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z))
-	path.append_array([Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)])
+	path.append_array(_exit_path())
 	finished.emit(self, false)
 
 # ---------- update ----------
@@ -540,6 +543,9 @@ func _arrived() -> void:
 				_drop_my_cart()
 				path = _exit_path()
 			else:
+				if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):
+					my_car.depart()
+				my_car = null
 				_drop_my_cart()
 				queue_free()
 

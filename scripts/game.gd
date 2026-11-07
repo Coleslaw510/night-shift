@@ -18,6 +18,10 @@ var hud: CanvasLayer
 var player: CharacterBody3D
 var registers: Array = []
 var customers_root: Node3D
+var cars_root: Node3D
+var fuel_job: Dictionary = {}
+var _spot_owner := {}
+var _pump_owner := {}
 var shift_over := false
 var elapsed := 0.0
 var spawned := 0
@@ -29,7 +33,7 @@ var _hint_t := 0.0
 var _change_reg: Node = null
 var _sfx: Array = []
 var touch_mode := false
-var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0, "carts": 0}
+var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0, "carts": 0, "fuel": 0}
 var cart_pay_mult := 1.0
 
 func _ready() -> void:
@@ -58,6 +62,11 @@ func _ready() -> void:
 	customers_root.name = "Customers"
 	customers_root.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(customers_root)
+	cars_root = Node3D.new()
+	cars_root.name = "Cars"
+	cars_root.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(cars_root)
+	_spawn_ambient_cars()
 	hud = preload("res://scripts/hud.gd").new()
 	hud.touch_mode = touch_mode
 	add_child(hud)
@@ -140,6 +149,7 @@ func _process(delta: float) -> void:
 	_update_clock()
 	trash = minf(trash + delta / TRASH_FILL_SECONDS, 1.2)
 	_collect_stray_carts()
+	_run_fuel(delta)
 	_update_can()
 	_recover_registers()
 	_hint_t -= delta
@@ -153,9 +163,23 @@ func _process(delta: float) -> void:
 	if spawn_t <= 0.0 and elapsed < SHIFT_REAL_SECONDS * 0.95:
 		spawn_t = randf_range(10.0, 22.0)
 		if customers_root.get_child_count() < MAX_CUSTOMERS:
-			spawn_customer()
+			if randf() < 0.3 and _free_pump() != null:
+				spawn_fuel_car()
+			else:
+				spawn_customer()
 
 func spawn_customer() -> Node:
+	var spot: Variant = _take_spot()
+	if spot == null:
+		return _spawn_walker()
+	var s: Dictionary = spot
+	var car := Vehicle.new()
+	cars_root.add_child(car)
+	car.setup(self, s, false)
+	_spot_owner[_spot_key(s)] = car
+	return car
+
+func _spawn_walker() -> Node:
 	var c = preload("res://scripts/customer.gd").new()
 	c.registers = registers
 	c.game = self
@@ -167,6 +191,143 @@ func spawn_customer() -> Node:
 	c.path.push_front(Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0))
 	spawned += 1
 	return c
+
+func _spot_key(s: Dictionary) -> String:
+	var p: Vector3 = s.pos
+	return "%d_%d" % [int(round(p.x)), int(round(p.z))]
+
+func _take_spot() -> Variant:
+	for s in store.parking:
+		var k := _spot_key(s)
+		if not _spot_owner.has(k):
+			_spot_owner[k] = true
+			return s
+	return null
+
+func _free_pump() -> Variant:
+	for p in store.pumps:
+		if not _pump_owner.has(_spot_key(p)):
+			return p
+	return null
+
+func spawn_fuel_car() -> Node:
+	var pump: Variant = _free_pump()
+	if pump == null:
+		return null
+	var p: Dictionary = pump
+	var car := Vehicle.new()
+	cars_root.add_child(car)
+	car.setup(self, p, true)
+	_pump_owner[_spot_key(p)] = car
+	return car
+
+func _spawn_ambient_cars() -> void:
+	for paint in [Color(0.5, 0.08, 0.08), Color(0.16, 0.24, 0.38)]:
+		var spot: Variant = _take_spot()
+		if spot == null:
+			return
+		var s: Dictionary = spot
+		var car := Vehicle.new()
+		cars_root.add_child(car)
+		car.place_parked(self, s, paint)
+		_spot_owner[_spot_key(s)] = car
+
+func release_vehicle(car: Node) -> void:
+	if car.spot.is_empty():
+		return
+	var k := _spot_key(car.spot)
+	if car.is_fuel:
+		if _pump_owner.get(k) == car:
+			_pump_owner.erase(k)
+	elif _spot_owner.get(k) == car:
+		_spot_owner.erase(k)
+
+func on_car_parked(car: Node) -> void:
+	if car.driver:
+		return
+	var c = preload("res://scripts/customer.gd").new()
+	c.registers = registers
+	c.game = self
+	c.wants_cart = randf() < 0.7
+	c.my_car = car
+	c.position = car.door_position()
+	c.finished.connect(_on_customer_finished)
+	customers_root.add_child(c)
+	car.driver = c
+	spawned += 1
+
+func on_car_at_pump(car: Node) -> void:
+	car.say("...")
+
+func on_car_gone(_car: Node) -> void:
+	pass
+
+func fuel_for(car: Node) -> Variant:
+	if fuel_job.is_empty() or fuel_job.get("car") != car:
+		return null
+	return fuel_job
+
+func fuel_is_running() -> bool:
+	return not fuel_job.is_empty() and bool(fuel_job.get("running", false))
+
+func fuel_interact(car: Node) -> void:
+	if fuel_job.is_empty() or fuel_job.get("car") != car:
+		var fill := randf() < 0.35
+		var max_c := 4200
+		var target := max_c if fill else randi_range(8, 36) * 100
+		fuel_job = {"car": car, "target": target, "fill": fill, "max": max_c, "running": false, "value": 0.0}
+		var msg := ("Fill it up — $%.2f" % (target / 100.0)) if fill else ("$%.2f of gas" % (target / 100.0))
+		car.say(msg)
+		hud.toast(msg, 4.0)
+		return
+	if not bool(fuel_job.running):
+		fuel_job.running = true
+		hud.show_fuel_meter(true)
+		return
+	fuel_stop()
+
+func fuel_stop() -> void:
+	_finish_fuel()
+
+func _run_fuel(delta: float) -> void:
+	if fuel_job.is_empty():
+		return
+	var car: Node = fuel_job.get("car")
+	if is_instance_valid(car) and car.vstate == Vehicle.V.AT_PUMP and not bool(fuel_job.get("running", false)):
+		car._stuck += delta
+		if car._stuck > 75.0:
+			car.say("")
+			fuel_job = {}
+			hud.show_fuel_meter(false)
+			car.depart()
+			return
+	if not bool(fuel_job.get("running", false)):
+		return
+	fuel_job.value = float(fuel_job.value) + 820.0 * delta
+	hud.set_fuel_meter(float(fuel_job.value), float(fuel_job.target), float(fuel_job.max))
+	if float(fuel_job.value) >= float(fuel_job.max):
+		_finish_fuel()
+
+func _finish_fuel() -> void:
+	if fuel_job.is_empty():
+		return
+	var value := float(fuel_job.value)
+	var target := float(fuel_job.target)
+	var err := absf(value - target)
+	var acc := clampf(1.0 - err / maxf(target, 1.0), 0.0, 1.0)
+	var pay := int(round(250.0 * acc))
+	if err <= 150.0:
+		pay += 250
+	stats.earnings += pay
+	stats.fuel = int(stats.fuel) + 1
+	hud.set_money(stats.earnings)
+	hud.toast("Fuel  +$%.2f" % (pay / 100.0))
+	hud.show_fuel_meter(false)
+	var car: Node = fuel_job.get("car")
+	fuel_job = {}
+	if is_instance_valid(car):
+		car.say("Thanks")
+		car.depart()
 
 # ---------- money ----------
 func _on_paid(res: Dictionary) -> void:
@@ -424,6 +585,7 @@ func end_shift() -> void:
 	_update_clock()
 	player.controls_enabled = false
 	customers_root.process_mode = Node.PROCESS_MODE_DISABLED
+	hud.show_fuel_meter(false)
 	capture_mouse(false)
 	hud.set_prompt("")
 	hud.show_summary(stats)
@@ -464,7 +626,7 @@ var test_results := {}
 func debug_tick(frame: int) -> void:
 	if frame == 5:
 		for i in 5:
-			spawn_customer()
+			_spawn_walker()
 		_self_tests()
 	if frame % 15 == 0:
 		for r in registers:

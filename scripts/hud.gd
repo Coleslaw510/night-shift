@@ -146,6 +146,7 @@ func _ready() -> void:
 	summary_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_button(sb[1], "Back to Menu", func(): menu_pressed.emit())
 	_build_change_panel(root)
+	_build_fuel_meter(root)
 	if touch_mode:
 		# Joystick lives bottom-left on touch screens: move the scanner status to the top center.
 		for l in [status_title, status_label]:
@@ -253,6 +254,65 @@ func _build_change_panel(root: Control) -> void:
 	_button(h, "GIVE CHANGE", func(): change_confirmed.emit(_change_given), 200)
 	_button(h, "Close", func(): change_cancelled.emit(), 120)
 
+var fuel_panel: PanelContainer
+var fuel_fill: ColorRect
+var fuel_mark: ColorRect
+var fuel_readout: Label
+
+func _build_fuel_meter(root: Control) -> void:
+	fuel_panel = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.05, 0.04, 0.88)
+	sb.border_color = AMBER
+	sb.set_border_width_all(2)
+	sb.set_content_margin_all(12)
+	fuel_panel.add_theme_stylebox_override("panel", sb)
+	fuel_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	fuel_panel.offset_left = -210
+	fuel_panel.offset_right = 210
+	fuel_panel.offset_top = -250
+	fuel_panel.offset_bottom = -160
+	fuel_panel.visible = false
+	fuel_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(fuel_panel)
+	var v := VBoxContainer.new()
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	fuel_panel.add_child(v)
+	fuel_readout = _label(v, "PUMP", 18, AMBER)
+	fuel_readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var bar := Control.new()
+	bar.custom_minimum_size = Vector2(380, 28)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(bar)
+	var bg := ColorRect.new()
+	bg.color = Color(0.15, 0.15, 0.15)
+	bg.size = Vector2(380, 18)
+	bg.position = Vector2(0, 5)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(bg)
+	fuel_fill = ColorRect.new()
+	fuel_fill.color = Color(0.95, 0.55, 0.1)
+	fuel_fill.size = Vector2(4, 18)
+	fuel_fill.position = Vector2(0, 5)
+	fuel_fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(fuel_fill)
+	fuel_mark = ColorRect.new()
+	fuel_mark.color = Color(0.6, 1, 0.5)
+	fuel_mark.size = Vector2(3, 26)
+	fuel_mark.position = Vector2(0, 1)
+	fuel_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_child(fuel_mark)
+
+func show_fuel_meter(on: bool) -> void:
+	fuel_panel.visible = on
+
+func set_fuel_meter(value: float, target: float, maxc: float) -> void:
+	var w := 380.0
+	var f := clampf(value / maxf(maxc, 1.0), 0.0, 1.0)
+	fuel_fill.size.x = maxf(2.0, w * f)
+	fuel_mark.position.x = w * clampf(target / maxf(maxc, 1.0), 0.0, 1.0)
+	fuel_readout.text = "PUMP $%.2f    STOP NEAR $%.2f" % [value / 100.0, target / 100.0]
+
 var _due := 0
 func open_change(total: int, cash: int) -> void:
 	_change_given = 0
@@ -306,9 +366,9 @@ func show_pause(on: bool) -> void:
 	pause_panel.visible = on
 
 func show_summary(stats: Dictionary) -> void:
-	summary_text.text = "Earnings:            $%.2f\nTips:                $%.2f\nCustomers served:    %d\nCustomers who left:  %d\nItems stocked:       %d\nOut-of-stock misses: %d\nCorrect change:      %d / %d\nTrash bags out:      %d" % [
+	summary_text.text = "Earnings:            $%.2f\nTips:                $%.2f\nCustomers served:    %d\nCustomers who left:  %d\nItems stocked:       %d\nOut-of-stock misses: %d\nCorrect change:      %d / %d\nTrash bags out:      %d\nCarts returned:      %d\nFuel jobs:           %d" % [
 		stats.earnings / 100.0, stats.tips / 100.0, stats.served, stats.walked, stats.stocked,
-		stats.oos, stats.change_ok, stats.change_ok + stats.change_bad, stats.trash]
+		stats.oos, stats.change_ok, stats.change_ok + stats.change_bad, stats.trash, stats.get("carts", 0), stats.get("fuel", 0)]
 	summary_panel.visible = true
 
 func _process(delta: float) -> void:
