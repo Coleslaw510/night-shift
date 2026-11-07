@@ -652,9 +652,13 @@ func on_interact(body: Node, _p: Node) -> void:
 				var door: Node3D = doors[i]
 				var closed_z := float(door.get_meta("closed_z", door.position.z))
 				door.set_meta("closed_z", closed_z)
-				var open_z := closed_z + 0.58
-				var tw := create_tween()
-				tw.tween_property(door, "position:z", open_z if freezer_open else closed_z, 0.28).set_trans(Tween.TRANS_SINE)
+				var closed_rot := float(door.get_meta("closed_rot", 0.0))
+				door.set_meta("closed_rot", closed_rot)
+				var open_z := closed_z + 0.24
+				var open_rot := -0.82
+				var tw := create_tween().set_parallel(true)
+				tw.tween_property(door, "position:z", open_z if freezer_open else closed_z, 0.35).set_trans(Tween.TRANS_BACK)
+				tw.tween_property(door, "rotation:x", open_rot if freezer_open else closed_rot, 0.35).set_trans(Tween.TRANS_BACK)
 			play_sfx("click")
 		"checkout_gun":
 			if player.has_gun:

@@ -337,8 +337,13 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	var glass := mat(Color(0.7, 0.88, 1.0, 0.2), 0.3, 0.05)
 	var frame := mat(Color(0.75, 0.78, 0.8), 0.0, 0.3, 0.7)
 	box(store, Vector3(12.4, 2.5, 1.2), Vector3(0, 1.25, z), body)
+	# Fixed freezer cabinet: leave the front open so the food is visible.
+	box(store, Vector3(12.4, 0.35, 1.2), Vector3(0, 0.18, z), body)
+	box(store, Vector3(0.28, 2.35, 1.2), Vector3(-6.06, 1.18, z), body)
+	box(store, Vector3(0.28, 2.35, 1.2), Vector3(6.06, 1.18, z), body)
+	box(store, Vector3(12.0, 2.2, 0.12), Vector3(0, 1.2, z - 0.5), glow)
 	add_collider(store, Vector3(12.4, 2.5, 1.3), Vector3(0, 1.25, z))
-	box(store, Vector3(12.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.1), glow)
+	box(store, Vector3(12.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.42), glow)
 	box(store, Vector3(12.0, 0.06, 0.5), Vector3(0, 2.28, z + 0.2), mat(Color(0.9, 0.97, 1.0), 4.0))  # top light strip   # glowing back
 	# shelves + frozen goods inside
 	var xf: Array = []
@@ -365,6 +370,8 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, 2.3, 0.01), frame)
 		box(door, Vector3(0.05, 2.25, 0.06), Vector3(-0.78, 1.2, 0.01), frame)
 		box(door, Vector3(0.03, 0.7, 0.05), Vector3(0.65, 1.3, 0.06), frame)
+		box(door, Vector3(0.08, 0.42, 0.08), Vector3(0.58, 1.26, 0.09), mat(Color(0.95, 0.78, 0.25), 0.0, 0.35, 0.8))
+		box(door, Vector3(0.025, 2.18, 0.04), Vector3(0.76, 1.2, 0.09), mat(Color(0.4, 0.8, 1.0), 1.2, 0.2))
 		doors.append(door)
 	box(store, Vector3(12.4, 0.5, 1.2), Vector3(0, 2.75, z), body)
 	var fl := OmniLight3D.new()
@@ -548,6 +555,11 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 0.35, rz), orange)
 			for ux in [-2.8, 2.8]:
 				box(store, Vector3(0.08, 2.5, 0.7), Vector3(rx + ux, 1.2, rz), steel)
+				# Bright, labeled cartons make the stockroom readable at a glance.
+				for level in [0.45, 1.45]:
+					for offset in [-2.1, -0.7, 0.7, 2.1]:
+						var product: Dictionary = Products.CATALOG[(abs(int(rx)) + abs(int(rz)) + int(offset * 10.0) + int(level * 10.0)) % Products.CATALOG.size()]
+						_crate(store, Vector3(rx + offset, level, rz + 0.18), product, 0.03 * offset)
 	# Empty racks in the dark corners (somewhere for a monster to stand later)
 	for corner in [Vector3(-16.5, 0, -31.5), Vector3(16.5, 0, -31.0)]:
 		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 1.3, 0), orange)
