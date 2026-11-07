@@ -109,11 +109,12 @@ func _ready() -> void:
 	si.kind = "scanner"
 	si.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	si.offset_left = 30; si.offset_right = 64; si.offset_top = -92; si.offset_bottom = -58
+	si.visible = false
 	root.add_child(si)
-	status_title = _label(root, "BARCODE SCANNER", 20, WHITE)
+	status_title = _label(root, "", 20, WHITE)
 	status_title.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	status_title.offset_left = 84; status_title.offset_top = -96; status_title.offset_right = 600
-	status_label = _label(root, "READY", 20, GREEN)
+	status_label = _label(root, "", 20, GREEN)
 	status_label.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	status_label.offset_left = 84; status_label.offset_top = -68; status_label.offset_right = 600
 	# center
@@ -290,6 +291,8 @@ func set_prompt(text: String) -> void:
 func set_status(title: String, text: String, ok := true) -> void:
 	status_title.text = title
 	status_label.text = text
+	status_title.visible = title != ""
+	status_label.visible = text != ""
 	status_label.add_theme_color_override("font_color", GREEN if ok else AMBER)
 
 func set_tasks(lines: Array) -> void:

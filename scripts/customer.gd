@@ -8,7 +8,7 @@ extends Node3D
 
 signal finished(customer, paid: bool)
 
-enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING }
+enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING, FETCH_CART }
 
 const AISLES := [-18.2, -14.3, -10.9, -7.5, -4.0, 0.0, 4.0, 7.5, 10.9, 14.3, 18.2]
 const FRONT_Z := 8.2
@@ -29,6 +29,10 @@ var queue_wait := 0.0
 var phase := 0.0
 var moving := false
 var annoyed := 0
+var wants_cart := false
+var my_cart: Node = null
+var _return_cart := false
+var _abandon_cart := false
 var _stuck_t := 0.0
 var _anchor := Vector3.ZERO
 var _detours := 0
@@ -55,6 +59,12 @@ func _ready() -> void:
 	stops_left = randi_range(2, 4)
 	speed = randf_range(1.1, 1.45)
 	var door_z := StoreBuilder.D * 0.5
+	if wants_cart and game and game.has_method("nearest_free_cart"):
+		var cart: Node = game.nearest_free_cart(global_position)
+		if cart:
+			state = S.FETCH_CART
+			path = [cart.global_position]
+			return
 	path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 
 func _part(parent: Node3D, size: Vector3, pos: Vector3, c: Color, rough := 0.85) -> MeshInstance3D:
@@ -285,6 +295,18 @@ func choose_payment(total: int) -> Dictionary:
 		return {"method": "cash", "cash": total}
 	return {"method": "cash", "cash": opts.pick_random()}
 
+func _exit_path() -> Array:
+	var door_z := StoreBuilder.D * 0.5
+	return [Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)]
+
+func _drop_my_cart() -> void:
+	if my_cart and is_instance_valid(my_cart) and my_cart.has_method("release"):
+		if my_cart.follower == self:
+			my_cart.release()
+	my_cart = null
+	_return_cart = false
+	_abandon_cart = false
+
 func pay_and_leave(mood := "") -> void:
 	state = S.LEAVING
 	clear_basket()
@@ -292,12 +314,22 @@ func pay_and_leave(mood := "") -> void:
 		emote(mood, Color(0.5, 1, 0.6) if mood.begins_with("Thanks") else Color(1, 0.4, 0.3))
 	var lx := position.x
 	var door_z := StoreBuilder.D * 0.5
-	path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)]
+	if my_cart and is_instance_valid(my_cart) and randf() < 0.65 and game:
+		_return_cart = true
+		var corral: Vector3 = game.corral_point()
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), corral]
+	elif my_cart and is_instance_valid(my_cart):
+		_abandon_cart = true
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), Vector3(randf_range(-14, 16), 0, door_z + 8.0)]
+	else:
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z + 1.5)]
+		path.append_array(_exit_path())
 	finished.emit(self, true)
 
 func _give_up(reason := "Forget this...") -> void:
 	if my_register:
 		my_register.leave(self)
+	_drop_my_cart()
 	state = S.LEAVING
 	clear_basket()
 	emote(reason)
@@ -317,6 +349,12 @@ func _others() -> Array:
 		for c in game.customers_root.get_children():
 			if c != self:
 				others.append(c)
+	if is_inside_tree():
+		for cart in get_tree().get_nodes_in_group("cart"):
+			if cart == my_cart or cart.mode == Cart.M.FOLLOW:
+				continue
+			if cart.global_position.distance_to(global_position) < 2.2:
+				others.append(cart)
 	return others
 
 func _steer(dir: Vector3) -> Vector3:
@@ -392,6 +430,14 @@ func _watch_stuck(delta: float) -> void:
 func _unstick() -> void:
 	_detours += 1
 	match state:
+		S.FETCH_CART:
+			if _detours >= 2 or game == null or game.nearest_free_cart(global_position) == null:
+				wants_cart = false
+				state = S.ENTER
+				path = [Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+			else:
+				path = [game.nearest_free_cart(global_position).global_position]
+				position += Vector3(0.6, 0, 0.4)
 		S.ENTER:
 			if _detours >= 2:
 				position = Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)
@@ -474,6 +520,11 @@ func _arrived() -> void:
 		S.ENTER:
 			state = S.SHOP
 			_next_stop()
+		S.FETCH_CART:
+			_claim_cart()
+			state = S.ENTER
+			var door_z := StoreBuilder.D * 0.5
+			path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 		S.SHOP:
 			wait_t = randf_range(1.5, 3.0)
 		S.QUEUED:
@@ -483,7 +534,27 @@ func _arrived() -> void:
 				face_dir = Vector3(signf(my_register.counter_x - position.x), 0, 0)
 				my_register.customer_at_front(self)
 		S.LEAVING:
-			queue_free()
+			if (_return_cart or _abandon_cart) and my_cart and is_instance_valid(my_cart):
+				if _return_cart and game:
+					game.customer_return_cart(my_cart)
+				_drop_my_cart()
+				path = _exit_path()
+			else:
+				_drop_my_cart()
+				queue_free()
+
+func _claim_cart() -> void:
+	if my_cart or game == null:
+		return
+	var cart: Node = game.nearest_free_cart(global_position)
+	if cart and cart.global_position.distance_to(global_position) < 1.8:
+		cart.follow(self)
+		my_cart = cart
+
+func _exit_tree() -> void:
+	if my_cart and is_instance_valid(my_cart) and my_cart.follower == self:
+		my_cart.release()
+	my_cart = null
 
 func _grab() -> void:
 	for k in randi_range(1, 2):

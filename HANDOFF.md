@@ -40,7 +40,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - `scripts/store_builder.gd`: all geometry and lights for the store, stockroom, outside lot, fence, dumpster, cars and gun locker. Also holds the floor shader and the material cache.
 - `scripts/shelves.gd` (`ShelfSystem`): shelf frames and stock slots (6 rows x 2 faces x 4 levels x 8 slots). Products are drawn with 2 MultiMeshes (boxes + labels). `take()` for customers, `place()` for the player, low-stock queries.
 - `scripts/interact.gd` (`Interact`): generic collider that forwards `interact`/`get_prompt`/`hold_interact` to a target, with a `tag`.
-- `scripts/player.gd`: first-person controller, scanner viewmodel, carrying (stock box / trash bag), hold-to-use.
+- `scripts/player.gd`: first-person controller, empty-hand viewmodel, carrying (stock box / trash bag / cart), hold-to-use. `scripts/dropped_item.gd` is a box or bag left on the floor. `scripts/cart.gd` is a shopping cart.
 - `scripts/customer.gd`: low-poly person with hoodies/tees, hair styles, a simple face and a red basket. Runs the waypoint AI, waits for the player and other customers, gets annoyed when items are out of stock, and picks cash or card.
 - `scripts/register.gd`: checkout lane with the queue, belt items, scanning, and payment (card tap, or cash with change counted in the HUD drawer). Money is in cents.
 - `scripts/belt_item.gd`: scannable product on the belt.
@@ -68,7 +68,9 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Customer avoidance: they steer around each other and the player instead of freezing in contact. Queue spots are unique (the line folds instead of stacking on one point).
 - [x] Failsafe: a customer who makes no progress in a state is nudged, rerouted, snapped to the register if they are first in line, or forced to leave. Patience still runs while they are blocked, so nobody waits forever.
 - [x] One register and a bigger sales floor (10 shelf rows). Stockroom is full-width and 18 m deep, lit only in the middle, with dark corners. Fuel bay, cart corral and parking rows are built. Two cars sit in the lot until the driving AI lands.
-- [ ] No scanner, carts, driving cars, fuel job, shop, save, gun, touch HUD.
+- [x] No handheld scanner and no "BARCODE SCANNER" HUD. USE on a belt item or the register rings it up. USE on a matching shelf stocks; otherwise USE or Q drops the box or bag on the floor (`dropped_item.gd`). Nothing teleports home.
+- [x] Shopping carts (`scripts/cart.gd`): eight start in the corral. Customers fetch one, and some abandon them in the lot. The player grabs (E or C), pushes, shoves, and can ride one up the rear ramp. Returning a player-moved cart to the corral pays $0.75.
+- [ ] Driving cars, fuel job, shop, save, gun, touch HUD.
 - Version string is still 1.1.1 until the final 1.2 build.
 
 ### v1.1.1 (iPhone)

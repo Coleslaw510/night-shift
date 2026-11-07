@@ -9,6 +9,7 @@ const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
 const MAX_CUSTOMERS := 7
 const TRASH_FILL_SECONDS := 150.0         # empty -> full with no customers
 const TRASH_BONUS := 150                  # cents for taking a bag out
+const CART_PAY := 75                      # cents for a returned stray cart
 const BOX_UNITS := 12
 
 var store := {}
@@ -28,7 +29,8 @@ var _hint_t := 0.0
 var _change_reg: Node = null
 var _sfx: Array = []
 var touch_mode := false
-var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0}
+var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0, "carts": 0}
+var cart_pay_mult := 1.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -43,6 +45,7 @@ func _ready() -> void:
 	add_child(shelves)
 	shelves.build()
 	shelves.stocked.connect(func(_p): stats.stocked += 1)
+	_spawn_carts()
 	for lane in store.lanes:
 		var r = preload("res://scripts/register.gd").new()
 		r.name = "Register%d" % (lane.index + 1)
@@ -136,6 +139,7 @@ func _process(delta: float) -> void:
 	elapsed += delta
 	_update_clock()
 	trash = minf(trash + delta / TRASH_FILL_SECONDS, 1.2)
+	_collect_stray_carts()
 	_update_can()
 	_recover_registers()
 	_hint_t -= delta
@@ -156,6 +160,7 @@ func spawn_customer() -> Node:
 	c.registers = registers
 	c.game = self
 	var door_z := StoreBuilder.D * 0.5
+	c.wants_cart = randf() < 0.7
 	c.position = Vector3(StoreBuilder.DOOR_X + randf_range(-0.4, 0.4), 0, door_z + 8.0)
 	c.finished.connect(_on_customer_finished)
 	customers_root.add_child(c)
@@ -210,6 +215,63 @@ func _recover_registers() -> void:
 			c._arrived()
 		elif c.state == Customer.S.AT_REGISTER and r.state == 0:
 			r.customer_at_front(c)
+
+func _spawn_carts() -> void:
+	for slot in store.corral.slots:
+		var c := Cart.new()
+		add_child(c)
+		c.park(slot)
+
+func nearest_free_cart(from: Vector3) -> Node:
+	var best: Node = null
+	var best_d := 1.0e9
+	for c in get_tree().get_nodes_in_group("cart"):
+		if c.mode == Cart.M.HELD or c.mode == Cart.M.FOLLOW:
+			continue
+		var d: float = c.global_position.distance_to(from)
+		if d < best_d:
+			best = c
+			best_d = d
+	return best
+
+func corral_point() -> Vector3:
+	return store.corral.pos + Vector3(0, 0, 2.4)
+
+func customer_return_cart(cart: Node) -> void:
+	var slot: Variant = _free_cart_slot()
+	if slot == null:
+		cart.release()
+		return
+	cart.park(slot)
+
+func _free_cart_slot() -> Variant:
+	for s in store.corral.slots:
+		var taken := false
+		for c in get_tree().get_nodes_in_group("cart"):
+			if c.mode == Cart.M.PARKED and c.global_position.distance_to(s) < 0.75:
+				taken = true
+				break
+		if not taken:
+			return s
+	return null
+
+func _collect_stray_carts() -> void:
+	var origin: Vector3 = store.corral.pos
+	var half: Vector3 = store.corral.half
+	for c in get_tree().get_nodes_in_group("cart"):
+		if c.mode != Cart.M.FREE or not c.touched_by_player or c.paid:
+			continue
+		var d: Vector3 = c.global_position - origin
+		if absf(d.x) <= half.x and absf(d.z) <= half.z:
+			c.paid = true
+			var pay := int(round(float(CART_PAY) * cart_pay_mult))
+			stats.carts += 1
+			stats.earnings += pay
+			hud.set_money(stats.earnings)
+			hud.toast("Cart returned  +$%.2f" % (pay / 100.0))
+			var slot: Variant = _free_cart_slot()
+			if slot != null:
+				c.park(slot)
 
 func _on_customer_finished(_c: Node, did_pay: bool) -> void:
 	if not did_pay:
@@ -303,20 +365,29 @@ func _update_can() -> void:
 	bag.scale.y = maxf(f, 0.05) * 2.6
 	bag.position.y = 0.05 + f * 0.39
 
+func has_fast_ring() -> bool:
+	return false
+
 func _on_carry_changed(c: Dictionary) -> void:
 	match c.get("kind", ""):
 		"stock":
-			hud.set_status("CARRYING: %s" % Products.CATALOG[c.product].name.to_upper(), "%d LEFT - HOLD E ON ITS SHELF SPOT (Q: PUT BACK)" % c.count, true)
+			hud.set_status("CARRYING", "%s   %d LEFT — HOLD E ON ITS SHELF, OR DROP IT" % [Products.CATALOG[c.product].name.to_upper(), c.count], true)
 		"trash":
-			hud.set_status("CARRYING: TRASH BAG", "TAKE IT TO THE DUMPSTER OUT BACK", false)
+			hud.set_status("CARRYING", "TRASH BAG — DUMPSTER OUT BACK, OR DROP IT", false)
 		_:
-			hud.set_status("BARCODE SCANNER", "READY", true)
+			hud.set_status("", "")
 
 func _update_hints() -> void:
 	var lines: Array = []
 	var low: Array = shelves.low_products(0.3)
 	if not low.is_empty():
 		lines.append("LOW STOCK: " + ", ".join(low.slice(0, 3)) + (" +%d" % (low.size() - 3) if low.size() > 3 else ""))
+	var stray := 0
+	for c in get_tree().get_nodes_in_group("cart"):
+		if c.mode == Cart.M.FREE:
+			stray += 1
+	if stray > 0:
+		lines.append("STRAY CARTS: %d  (return them to the corral)" % stray)
 	if trash >= 1.0:
 		lines.append("TRASH IS OVERFLOWING!")
 	elif trash >= 0.7:

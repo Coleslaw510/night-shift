@@ -37,7 +37,7 @@ func _ready() -> void:
 		b.pressed.connect(spec[1])
 		box.add_child(b)
 	var help := Label.new()
-	help.text = ("Left stick move | Drag right side to look | USE scans & hold-to-stock | PUT BACK drops a box | II pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))) if OS.has_feature("mobile") else "WASD move | Mouse look | Shift sprint | E / Click use (hold to stock) | Q put box back | Esc pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))
+	help.text = ("Left stick move | Drag to look | USE grabs, rings up, stocks or drops | II pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))) if OS.has_feature("mobile") else "WASD move | Mouse look | Shift sprint | E use (hold to stock, or drop what you hold) | Q drop | Esc pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))
 	help.add_theme_color_override("font_color", Color(0.45, 0.5, 0.55))
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(help)

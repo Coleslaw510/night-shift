@@ -1,7 +1,8 @@
 extends CharacterBody3D
 ## First-person controller: WASD, mouse look, Shift sprint, Space jump, E/click interact
-## (hold for stocking), Q to put down a carried stock box. Has a scanner viewmodel and can
-## carry one thing: {"kind": "stock", "product": idx, "count": n} or {"kind": "trash"}.
+## (hold for stocking). Carry one thing: {"kind": "stock", "product": idx, "count": n}
+## or {"kind": "trash"}. USE on a matching shelf slots it; otherwise USE or Q sets it
+## down on the floor. Items never teleport back to where they came from.
 
 signal prompt_changed(text: String)
 signal carry_changed(carrying: Dictionary)
@@ -19,17 +20,22 @@ var _last_prompt := ""
 var controls_enabled := true
 var carrying: Dictionary = {}
 var viewmodel: Node3D
-var scanner: Node3D
-var beam: MeshInstance3D
 var carry_node: Node3D
-var _beam_t := 0.0
 var _bob := 0.0
 var touch_mode := false          # set by game.gd on phones/tablets
 var touch_move := Vector2.ZERO   # from the virtual joystick
 var sprint_toggle := false
+var holding_cart: Node3D = null
+var near_cart: Node3D = null
+var riding: Node3D = null
 
 func _ready() -> void:
 	Settings.load_settings()
+	if not InputMap.has_action("cart"):
+		InputMap.add_action("cart")
+		var ev := InputEventKey.new()
+		ev.physical_keycode = KEY_C
+		InputMap.action_add_event("cart", ev)
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -56,7 +62,6 @@ func _build_viewmodel() -> void:
 	cam.add_child(viewmodel)
 	var skin := StoreBuilder.mat(Color(0.86, 0.64, 0.47), 0.0, 0.8)
 	var sleeve := StoreBuilder.mat(Color(0.16, 0.28, 0.22), 0.0, 0.9)     # green work shirt
-	var plastic := StoreBuilder.mat(Color(0.27, 0.27, 0.28), 0.0, 0.4, 0.2)
 	var arm := Node3D.new()
 	arm.rotation = Vector3(0.18, 0.42, -0.1)
 	viewmodel.add_child(arm)
@@ -66,20 +71,6 @@ func _build_viewmodel() -> void:
 	for k in 3:
 		StoreBuilder.box(arm, Vector3(0.03, 0.032, 0.03), Vector3(-0.065, -0.005 - k * 0.036, -0.12), skin)
 	StoreBuilder.box(arm, Vector3(0.035, 0.03, 0.07), Vector3(-0.05, 0.03, -0.1), skin)    # thumb
-	scanner = Node3D.new()
-	scanner.position = Vector3(-0.005, 0.0, -0.1)
-	scanner.scale = Vector3(0.8, 0.8, 0.8)
-	scanner.rotation.x = 0.15
-	arm.add_child(scanner)
-	var handle := StoreBuilder.box(scanner, Vector3(0.07, 0.22, 0.08), Vector3(0, 0.02, 0), plastic)
-	handle.rotation.x = 0.28
-	StoreBuilder.box(scanner, Vector3(0.11, 0.11, 0.24), Vector3(0, 0.15, -0.06), plastic)        # body
-	StoreBuilder.box(scanner, Vector3(0.13, 0.13, 0.07), Vector3(0, 0.155, -0.2), plastic)        # head
-	StoreBuilder.box(scanner, Vector3(0.05, 0.03, 0.005), Vector3(0, 0.175, 0.062), StoreBuilder.mat(Color(0.55, 0.95, 0.2), 1.5))  # status screen
-	StoreBuilder.box(scanner, Vector3(0.1, 0.08, 0.005), Vector3(0, 0.155, -0.236), StoreBuilder.mat(Color(1, 0.12, 0.05), 2.5))
-	StoreBuilder.box(scanner, Vector3(0.03, 0.05, 0.03), Vector3(0, 0.07, -0.06), StoreBuilder.mat(Color(0.25, 0.25, 0.27)))  # trigger
-	beam = StoreBuilder.box(scanner, Vector3(0.08, 0.004, 1.4), Vector3(0, 0.155, -0.95), StoreBuilder.unshaded(Color(1, 0.1, 0.05, 0.6)))
-	beam.visible = false
 	carry_node = Node3D.new()
 	carry_node.position = Vector3(-0.2, -0.05, -0.15)
 	viewmodel.add_child(carry_node)
@@ -110,9 +101,37 @@ func use_stock_unit() -> void:
 	else:
 		carry_changed.emit(carrying)
 
-func scan_flash() -> void:
-	_beam_t = 0.12
-	beam.visible = true
+func drop_carried() -> void:
+	if carrying.is_empty():
+		return
+	var d := carrying.duplicate(true)
+	var ahead := -global_transform.basis.z
+	ahead.y = 0
+	if ahead.length() < 0.01:
+		ahead = Vector3(0, 0, -1)
+	var pos := global_position + ahead.normalized() * 0.75
+	pos.y = 0.4
+	set_carry({})
+	var item := preload("res://scripts/dropped_item.gd").new()
+	var root := get_parent()
+	if root:
+		root.add_child(item)
+		item.setup(d, pos)
+	_play("place")
+
+func _valid_place(t: Node) -> bool:
+	if t == null or not ("tag" in t) or not (t.tag is Dictionary):
+		return false
+	var kind := str(t.tag.get("kind", ""))
+	if carrying.get("kind", "") == "stock" and kind == "shelf" and t.target and t.target.has_method("_player_slot"):
+		var i: int = t.target._player_slot(t, self)
+		if i < 0:
+			return false
+		var s: Dictionary = t.target.slots[i]
+		return int(s.product) == int(carrying.product) and int(s.count) < int(s.cap)
+	if carrying.get("kind", "") == "trash" and kind == "dumpster":
+		return true
+	return false
 
 func _play(sfx: String) -> void:
 	var g := get_parent()
@@ -132,14 +151,18 @@ func _unhandled_input(event: InputEvent) -> void:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
 		var t := _target()
+		if not carrying.is_empty():
+			if _valid_place(t):
+				t.interact(self)
+			else:
+				drop_carried()
+			return
 		if t:
 			t.interact(self)
 	elif event.is_action_pressed("drop"):
-		if carrying.get("kind", "") == "stock":
-			set_carry({})
-			var g := get_parent()
-			if g and g.has_method("toast"):
-				g.toast("Put the box back in the stockroom.")
+		drop_carried()
+	elif event.is_action_pressed("cart"):
+		toggle_cart(null)
 
 func touch_look(rel: Vector2) -> void:
 	if not controls_enabled:
@@ -147,6 +170,74 @@ func touch_look(rel: Vector2) -> void:
 	rotate_y(-rel.x)
 	cam.rotate_x(-rel.y)
 	cam.rotation.x = clamp(cam.rotation.x, -1.45, 1.45)
+
+func toggle_cart(which: Node3D) -> void:
+	if holding_cart:
+		holding_cart.release()
+		holding_cart = null
+		return
+	if not carrying.is_empty():
+		return
+	var cart: Node3D = which if which != null else near_cart
+	if cart == null or not is_instance_valid(cart):
+		return
+	if cart.mode == Cart.M.FOLLOW:
+		return
+	if cart.mode == Cart.M.PARKED:
+		cart.release()
+	cart.hold(self)
+	holding_cart = cart
+
+func gun_out() -> bool:
+	return false
+
+func _push_carts() -> void:
+	for i in get_slide_collision_count():
+		var col := get_slide_collision(i)
+		var n: Object = col.get_collider()
+		if n is Cart and n.mode == Cart.M.FREE and n != holding_cart:
+			n.apply_central_impulse(-col.get_normal() * 1.6)
+			n.touched_by_player = true
+
+func _ride(delta: float) -> void:
+	if holding_cart or not is_inside_tree():
+		riding = null
+		return
+	var on: Node3D = null
+	var space := get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 0.4, 0), global_position + Vector3(0, -0.6, 0))
+	q.exclude = [self]
+	var hit := space.intersect_ray(q)
+	if not hit.is_empty() and hit.collider is Cart and hit.collider.mode == Cart.M.FREE and global_position.y > 0.2:
+		on = hit.collider
+	riding = on
+	if riding == null:
+		return
+	riding.touched_by_player = true
+	riding.freeze = false
+	var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back") + touch_move
+	var dir := (transform.basis * Vector3(inp.x, 0, inp.y))
+	if dir.length() > 0.1:
+		riding.apply_central_force(dir.normalized() * 220.0)
+		riding.angular_velocity.y = 0
+	# stay in the basket while the cart rolls
+	var flat: Vector3 = riding.global_position
+	global_position.x = lerpf(global_position.x, flat.x, minf(1.0, 8.0 * delta))
+	global_position.z = lerpf(global_position.z, flat.z, minf(1.0, 8.0 * delta))
+
+func _nearest_cart() -> Node3D:
+	if not is_inside_tree():
+		return null
+	var best: Node3D = null
+	var best_d := 1.7
+	for c in get_tree().get_nodes_in_group("cart"):
+		if c.mode == Cart.M.FOLLOW:
+			continue
+		var d: float = c.global_position.distance_to(global_position)
+		if d < best_d:
+			best = c
+			best_d = d
+	return best
 
 func _target() -> Node:
 	if not ray.is_colliding():
@@ -176,20 +267,20 @@ func _physics_process(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()
+	_push_carts()
+	_ride(delta)
 	var hs := Vector2(velocity.x, velocity.z).length()
 	if hs > 0.5 and is_on_floor():
 		_bob += delta * hs * 2.6
 	cam.position.y = 1.62 + sin(_bob * 2.0) * 0.025
 	viewmodel.position = Vector3(0.27 + cos(_bob) * 0.008, -0.31 + absf(sin(_bob)) * 0.01, -0.55)
-	if _beam_t > 0.0:
-		_beam_t -= delta
-		if _beam_t <= 0.0:
-			beam.visible = false
-	scanner.visible = carrying.is_empty()
+	near_cart = holding_cart if holding_cart != null else _nearest_cart()
 	var p := ""
 	var t := _target()
 	if t and t.has_method("get_prompt"):
 		p = t.get_prompt(self)
+	if p == "" and near_cart and near_cart.has_method("get_prompt"):
+		p = near_cart.get_prompt(self)
 	if p != _last_prompt:
 		_last_prompt = p
 		prompt_changed.emit(p)

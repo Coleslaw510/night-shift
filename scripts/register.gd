@@ -92,8 +92,6 @@ func scan(it: Node) -> void:
 	_flash = 0.15
 	if game:
 		game.play_sfx("beep")
-		if game.player:
-			game.player.scan_flash()
 	if belt.is_empty() and front():
 		state = R.PAYMENT
 		payment = front().choose_payment(total)
@@ -193,10 +191,17 @@ func get_prompt_for(_body: Node, _player: Node) -> String:
 				return "[E] Run card  $%.2f" % (total / 100.0)
 			return "[E] Open cash drawer  - Total $%.2f, Cash $%.2f" % [total / 100.0, payment.cash / 100.0]
 		R.SCANNING:
-			return "Scan the items on the belt (%d left)" % belt.size()
+			return "[E] Ring up the belt (%d left)" % belt.size()
 	return "Lane %d register" % (index + 1)
 
 func on_interact(_body: Node, _player: Node) -> void:
+	if state == R.SCANNING and not belt.is_empty():
+		if game and game.has_method("has_fast_ring") and game.has_fast_ring():
+			while not belt.is_empty():
+				scan(belt[0])
+		else:
+			scan(belt[0])
+		return
 	if state != R.PAYMENT:
 		return
 	if payment.method == "card":
