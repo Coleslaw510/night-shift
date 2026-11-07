@@ -24,6 +24,9 @@ var beam: MeshInstance3D
 var carry_node: Node3D
 var _beam_t := 0.0
 var _bob := 0.0
+var touch_mode := false          # set by game.gd on phones/tablets
+var touch_move := Vector2.ZERO   # from the virtual joystick
+var sprint_toggle := false
 
 func _ready() -> void:
 	Settings.load_settings()
@@ -125,7 +128,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		cam.rotate_x(-event.relative.y * s)
 		cam.rotation.x = clamp(cam.rotation.x, -1.45, 1.45)
 	elif event.is_action_pressed("interact"):
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		if not touch_mode and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 			return
 		var t := _target()
@@ -137,6 +140,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			var g := get_parent()
 			if g and g.has_method("toast"):
 				g.toast("Put the box back in the stockroom.")
+
+func touch_look(rel: Vector2) -> void:
+	if not controls_enabled:
+		return
+	rotate_y(-rel.x)
+	cam.rotate_x(-rel.y)
+	cam.rotation.x = clamp(cam.rotation.x, -1.45, 1.45)
 
 func _target() -> Node:
 	if not ray.is_colliding():
@@ -153,15 +163,16 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= gravity * delta
 	var dir := Vector3.ZERO
 	if controls_enabled:
-		var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back") + touch_move
+		inp = inp.limit_length(1.0)
 		dir = (transform.basis * Vector3(inp.x, 0, inp.y)).normalized()
 		if Input.is_action_just_pressed("jump") and is_on_floor():
 			velocity.y = JUMP
-		if Input.is_action_pressed("interact") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if Input.is_action_pressed("interact") and (touch_mode or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED):
 			var ht := _target()
 			if ht and ht.has_method("hold_interact"):
 				ht.hold_interact(self, delta)
-	var spd := SPRINT if Input.is_action_pressed("sprint") else WALK
+	var spd := SPRINT if (Input.is_action_pressed("sprint") or sprint_toggle) else WALK
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()

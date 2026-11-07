@@ -1,6 +1,7 @@
 # Progress
 
-## v1.1: **100%**
-Done. CI run 42336173236 is green with Windows + Mac artifacts. Next milestone: multiplayer + proximity voice (see HANDOFF.md).
+## v1.1.1 (iPhone): **85%**
+Touch controls, phone HUD, mobile preset, icon, iOS preset and the CI job are written and tested headless (desktop + `--touch`). Remaining: green iOS CI run + IPA.
 
+## v1.1: 100%
 ## v0.1 baseline: 100%

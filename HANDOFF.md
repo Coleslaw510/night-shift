@@ -21,6 +21,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
   not notarized). Artifacts: `NightShift-Windows`, `NightShift-Mac`.
 
 ## Build / run
+- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.1.1-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+.
 - Open the folder in Godot 4.4.1 and press F5. Main scene: `scenes/menu.tscn`.
 - Smoke test: `godot --headless --import && godot --headless --script res://tests/smoke_test.gd`
   (fails CI on any `SCRIPT ERROR` line or non-zero exit).
@@ -63,6 +64,13 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ## Status
 <!-- STATUS-START -->
+### v1.1.1 (iPhone)
+- [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
+- [x] Phone HUD: landscape only (`display/window/handheld/orientation=4`), safe-area margins (`Hud.safe_rect`), UI scale 1.3, scanner status moved to the top center.
+- [x] Mobile preset (`game._setup_mobile`): no MSAA, 0.8 3D scale, 60 fps cap, lighter glow. Lights and materials are unchanged so the look stays.
+- [x] iOS export preset (project-only Xcode export) and CI `ios` job: macos-15, Godot 4.4.1 plus the iOS template, xcodebuild unsigned arm64 → `NightShift-1.1.1.ipa`, Info.plist checks, and a simulator launch test (non-blocking).
+- [x] App icon `icon.png` (1024, rendered from the game plus a neon title; Godot generates all sizes).
+
 ### v1.1 (current)
 - [x] Look matched to the concept art: warm dim lighting, a dark gridded ceiling with fluorescent strips (2 flicker), a tiled floor shader, packed colorful shelves with labels and price tags, a glowing freezer and "FREEZER AISLE ->" sign, beige boxy registers with belts, cardboard clutter, the scanner-in-hand viewmodel, and the concept-style HUD. See `docs/screenshot_1.1_interior.png`.
 - [x] Customers restyled: hoodies or tees, jeans, sneakers, 5 hair styles, faces. They wait for the player and other customers instead of walking through them.

@@ -1,3 +1,4 @@
+class_name Hud
 extends CanvasLayer
 ## HUD in the concept-art style: clock icon + NIGHT SHIFT/time (top-left), $X EARNINGS
 ## (top-right), scanner status (bottom-left), task hints, prompt, toast, pause (with
@@ -43,13 +44,34 @@ var change_info: Label
 var change_given_label: Label
 var _change_given := 0
 var _toast_t := 0.0
+var root: Control
+var touch_mode := false
+
+## Safe area (notch / home bar) in viewport coordinates, with a small inset.
+static func safe_rect(v: Viewport) -> Rect2:
+	var vp := v.get_visible_rect().size
+	if OS.has_feature("mobile"):
+		var sa := DisplayServer.get_display_safe_area()
+		var ws := Vector2(DisplayServer.window_get_size())
+		if ws.x > 0 and sa.size.x > 0:
+			var k := vp / ws
+			return Rect2(Vector2(sa.position) * k, Vector2(sa.size) * k).grow(-10)
+	return Rect2(Vector2(0, 0), vp)
+
+func _apply_safe_area() -> void:
+	var r := safe_rect(get_viewport())
+	var vp := get_viewport().get_visible_rect().size
+	root.offset_left = r.position.x
+	root.offset_top = r.position.y
+	root.offset_right = r.end.x - vp.x
+	root.offset_bottom = r.end.y - vp.y
 
 func _ready() -> void:
 	layer = 10
 	font = SystemFont.new()
 	font.font_names = PackedStringArray(["DejaVu Sans Mono", "Menlo", "Consolas", "Courier New", "monospace"])
 	font.font_weight = 700
-	var root := Control.new()
+	root = Control.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -123,6 +145,21 @@ func _ready() -> void:
 	summary_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_button(sb[1], "Back to Menu", func(): menu_pressed.emit())
 	_build_change_panel(root)
+	if touch_mode:
+		# Joystick lives bottom-left on touch screens: move the scanner status to the top center.
+		for l in [status_title, status_label]:
+			l.set_anchors_preset(Control.PRESET_CENTER_TOP)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			l.offset_left = -300; l.offset_right = 300
+		status_title.offset_top = 6
+		status_label.offset_top = 32
+		toast_label.offset_top = 70; toast_label.offset_bottom = 110
+		prompt_label.offset_top = -110; prompt_label.offset_bottom = -70
+		prompt_label.offset_left = -330; prompt_label.offset_right = 330
+		prompt_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		si.visible = false
+	_apply_safe_area()
+	get_viewport().size_changed.connect(_apply_safe_area)
 
 func _label(parent: Node, text: String, size: int, color: Color) -> Label:
 	var l := Label.new()

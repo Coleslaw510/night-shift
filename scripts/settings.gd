@@ -28,7 +28,7 @@ static func apply() -> void:
 ## Adds two labelled sliders (mouse sensitivity, volume) to a container.
 static func add_sliders(box: Container) -> void:
 	load_settings()
-	for spec in [["Mouse sensitivity", 0.2, 3.0, mouse_sens, "mouse_sens"], ["Volume", 0.0, 1.0, volume, "volume"]]:
+	for spec in [["Look sensitivity", 0.2, 3.0, mouse_sens, "mouse_sens"], ["Volume", 0.0, 1.0, volume, "volume"]]:
 		var l := Label.new()
 		l.text = spec[0]
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

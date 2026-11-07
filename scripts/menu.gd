@@ -3,6 +3,8 @@ extends Control
 
 func _ready() -> void:
 	Settings.load_settings()
+	if OS.has_feature("mobile"):
+		get_tree().root.content_scale_factor = 1.3
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var bg := ColorRect.new()
 	bg.color = Color(0.03, 0.04, 0.06)
@@ -24,7 +26,10 @@ func _ready() -> void:
 	sub.add_theme_color_override("font_color", Color(0.6, 0.65, 0.7))
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(sub)
-	for spec in [["Start Shift", _on_start], ["Quit", _on_quit]]:
+	var specs := [["Start Shift", _on_start]]
+	if not OS.has_feature("mobile"):
+		specs.append(["Quit", _on_quit])
+	for spec in specs:
 		var b := Button.new()
 		b.text = spec[0]
 		b.custom_minimum_size = Vector2(260, 52)
@@ -32,7 +37,7 @@ func _ready() -> void:
 		b.pressed.connect(spec[1])
 		box.add_child(b)
 	var help := Label.new()
-	help.text = "WASD move | Mouse look | Shift sprint | E / Click use (hold to stock) | Q put box back | Esc pause\n\nv1.1"
+	help.text = ("Left stick move | Drag right side to look | USE scans & hold-to-stock | PUT BACK drops a box | II pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))) if OS.has_feature("mobile") else "WASD move | Mouse look | Shift sprint | E / Click use (hold to stock) | Q put box back | Esc pause\n\nv" + str(ProjectSettings.get_setting("application/config/version"))
 	help.add_theme_color_override("font_color", Color(0.45, 0.5, 0.55))
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(help)

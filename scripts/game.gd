@@ -27,12 +27,18 @@ var front_open := 0.0
 var _hint_t := 0.0
 var _change_reg: Node = null
 var _sfx: Array = []
+var touch_mode := false
 var stats := {"earnings": 0, "tips": 0, "served": 0, "walked": 0, "stocked": 0, "oos": 0, "change_ok": 0, "change_bad": 0, "trash": 0}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
+	touch_mode = is_touch()
+	if touch_mode:
+		_setup_mobile()
 	store = StoreBuilder.build(self, self)
+	if touch_mode:
+		_mobile_env()
 	shelves = ShelfSystem.new()
 	add_child(shelves)
 	shelves.build()
@@ -50,6 +56,7 @@ func _ready() -> void:
 	customers_root.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(customers_root)
 	hud = preload("res://scripts/hud.gd").new()
+	hud.touch_mode = touch_mode
 	add_child(hud)
 	hud.process_mode = Node.PROCESS_MODE_ALWAYS
 	hud.resume_pressed.connect(func(): set_paused(false))
@@ -62,6 +69,7 @@ func _ready() -> void:
 	player.rotation.y = 0.0
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(player)
+	player.touch_mode = touch_mode
 	player.prompt_changed.connect(hud.set_prompt)
 	player.carry_changed.connect(_on_carry_changed)
 	for i in 6:
@@ -74,10 +82,41 @@ func _ready() -> void:
 	hum.volume_db = -26.0
 	hum.autoplay = true
 	add_child(hum)
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	capture_mouse(true)
+	if touch_mode:
+		var tc := TouchControls.new()
+		tc.game = self
+		tc.player = player
+		add_child(tc)
 	hud.toast("Customers check out at lanes 1 and 2. Stock room is through the back.", 6.0)
 	_update_clock()
 	_update_hints()
+
+## Touch mode: phones/tablets, or desktop testing with `godot -- --touch`.
+static func is_touch() -> bool:
+	return OS.has_feature("mobile") or OS.get_cmdline_user_args().has("--touch")
+
+func capture_mouse(on: bool) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if (on and not touch_mode) else Input.MOUSE_MODE_VISIBLE
+
+## Mobile preset: no tap-to-interact via emulated mouse clicks, no MSAA, lighter glow/fog,
+## slightly lower 3D resolution, 60 fps cap. The look is kept (same lights and materials).
+func _setup_mobile() -> void:
+	InputMap.action_erase_events("interact")
+	var e := InputEventKey.new()
+	e.physical_keycode = KEY_E
+	InputMap.action_add_event("interact", e)
+	var vp := get_viewport()
+	vp.msaa_3d = Viewport.MSAA_DISABLED
+	vp.scaling_3d_scale = 0.8
+	Engine.max_fps = 60
+
+func _mobile_env() -> void:
+	for c in get_children():
+		if c is WorldEnvironment:
+			var env: Environment = c.environment
+			env.glow_intensity = 0.55
+			env.adjustment_enabled = false
 
 func play_sfx(name: String) -> void:
 	for a in _sfx:
@@ -145,7 +184,7 @@ func _on_paid(res: Dictionary) -> void:
 func open_change(reg: Node) -> void:
 	_change_reg = reg
 	player.controls_enabled = false
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	capture_mouse(false)
 	hud.open_change(reg.total, reg.payment.cash)
 
 func close_change() -> void:
@@ -153,7 +192,7 @@ func close_change() -> void:
 	hud.close_change()
 	player.controls_enabled = true
 	if not shift_over:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		capture_mouse(true)
 
 func _on_change_confirmed(given: int) -> void:
 	if _change_reg:
@@ -302,7 +341,7 @@ func end_shift() -> void:
 	_update_clock()
 	player.controls_enabled = false
 	customers_root.process_mode = Node.PROCESS_MODE_DISABLED
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	capture_mouse(false)
 	hud.set_prompt("")
 	hud.show_summary(stats)
 
@@ -330,7 +369,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func set_paused(on: bool) -> void:
 	get_tree().paused = on
 	hud.show_pause(on)
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if on else Input.MOUSE_MODE_CAPTURED
+	capture_mouse(not on)
 
 func _to_menu() -> void:
 	get_tree().paused = false
@@ -423,6 +462,12 @@ func debug_pose(shot: String) -> void:
 			player.position = Vector3(10.5, 0.05, StoreBuilder.ZB - 1.0)
 			player.rotation.y = deg_to_rad(35)
 			player.cam.rotation.x = deg_to_rad(-12)
+		"icon":
+			hud.visible = false
+			player.viewmodel.visible = false
+			player.position = Vector3(-2.0, 0.05, 25.0)
+			player.rotation.y = 0.0
+			player.cam.rotation.x = deg_to_rad(4)
 		"front":
 			player.position = Vector3(-1.0, 0.05, 28.5)
 			player.rotation.y = 0.0
