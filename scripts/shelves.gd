@@ -7,6 +7,7 @@ extends Node3D
 signal stocked(product_idx: int)
 
 const LEVELS := [0.12, 0.56, 1.0, 1.44]
+const VIS := Vector3(1.25, 1.25, 1.0)   # products are drawn a bit chunkier on shelves
 const SLOTS := 8
 const DEPTH := 0.55            # half-depth of a shelf row (x)
 var HIDE := Transform3D(Basis.from_scale(Vector3(0.001, 0.001, 0.001)), Vector3(0, -50, 0))
@@ -49,9 +50,9 @@ func build() -> void:
 					if randf() < 0.25:
 						pidx = Products.SHELF_ITEMS.pick_random()
 					var p: Dictionary = Products.CATALOG[pidx]
-					var s: Vector3 = p.size
+					var s: Vector3 = p.size * VIS
 					var cap := clampi(int((slot_len - 0.04) / (s.x + 0.015)), 2, 12)
-					var count := randi_range(0, cap) if randf() < 0.8 else 0
+					var count := randi_range(cap / 2, cap) if randf() < 0.85 else randi_range(0, 1)
 					var z0: float = StoreBuilder.SHELF_Z0 + 0.15 + si * slot_len
 					slots.append({"row": r, "side": side, "level": li, "idx": si, "product": pidx, "cap": cap, "count": count, "z0": z0, "inst": 0})
 				# price tags along the shelf edge
@@ -91,7 +92,9 @@ func _build_multimesh() -> void:
 func _refresh(i: int) -> void:
 	var s: Dictionary = slots[i]
 	var p: Dictionary = Products.CATALOG[s.product]
-	var sz: Vector3 = p.size
+	var sz: Vector3 = p.size * VIS
+	var sz_y := minf(sz.y, 0.4)
+	sz.y = sz_y
 	var sx: float = StoreBuilder.SHELF_X[s.row]
 	var depth := minf(sz.z * 2.2, 0.42)
 	var x: float = sx + s.side * (DEPTH - 0.03 - depth * 0.5)

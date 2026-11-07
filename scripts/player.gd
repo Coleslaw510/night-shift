@@ -36,7 +36,7 @@ func _ready() -> void:
 	add_child(cs)
 	cam = Camera3D.new()
 	cam.position.y = 1.62
-	cam.fov = 72
+	cam.fov = 66
 	cam.near = 0.03
 	add_child(cam)
 	cam.current = true
@@ -49,30 +49,33 @@ func _ready() -> void:
 
 func _build_viewmodel() -> void:
 	viewmodel = Node3D.new()
-	viewmodel.position = Vector3(0.24, -0.27, -0.42)
+	viewmodel.position = Vector3(0.27, -0.31, -0.55)
 	cam.add_child(viewmodel)
-	var skin := StoreBuilder.mat(Color(0.86, 0.66, 0.5), 0.0, 0.8)
+	var skin := StoreBuilder.mat(Color(0.86, 0.64, 0.47), 0.0, 0.8)
 	var sleeve := StoreBuilder.mat(Color(0.16, 0.28, 0.22), 0.0, 0.9)     # green work shirt
-	var plastic := StoreBuilder.mat(Color(0.13, 0.13, 0.14), 0.0, 0.5)
+	var plastic := StoreBuilder.mat(Color(0.27, 0.27, 0.28), 0.0, 0.4, 0.2)
 	var arm := Node3D.new()
-	arm.rotation = Vector3(0.25, 0.15, 0)
+	arm.rotation = Vector3(0.18, 0.42, -0.1)
 	viewmodel.add_child(arm)
-	StoreBuilder.box(arm, Vector3(0.1, 0.1, 0.42), Vector3(0.04, -0.07, 0.24), sleeve)
-	StoreBuilder.box(arm, Vector3(0.085, 0.085, 0.2), Vector3(0.02, -0.05, 0.02), skin)    # forearm
-	StoreBuilder.box(arm, Vector3(0.1, 0.1, 0.11), Vector3(0.0, -0.03, -0.1), skin)        # fist
+	StoreBuilder.box(arm, Vector3(0.12, 0.12, 0.5), Vector3(0.07, -0.13, 0.32), sleeve)
+	StoreBuilder.box(arm, Vector3(0.095, 0.095, 0.26), Vector3(0.04, -0.09, 0.05), skin)     # forearm
+	StoreBuilder.box(arm, Vector3(0.12, 0.12, 0.12), Vector3(0.0, -0.04, -0.09), skin)       # fist
 	for k in 3:
-		StoreBuilder.box(arm, Vector3(0.025, 0.03, 0.025), Vector3(-0.055, -0.0 - k * 0.032, -0.12), skin)  # fingers
+		StoreBuilder.box(arm, Vector3(0.03, 0.032, 0.03), Vector3(-0.065, -0.005 - k * 0.036, -0.12), skin)
+	StoreBuilder.box(arm, Vector3(0.035, 0.03, 0.07), Vector3(-0.05, 0.03, -0.1), skin)    # thumb
 	scanner = Node3D.new()
-	scanner.position = Vector3(0.0, 0.0, -0.11)
+	scanner.position = Vector3(-0.005, 0.0, -0.1)
+	scanner.scale = Vector3(0.8, 0.8, 0.8)
+	scanner.rotation.x = 0.15
 	arm.add_child(scanner)
-	var handle := StoreBuilder.box(scanner, Vector3(0.05, 0.17, 0.06), Vector3(0, 0.0, 0), plastic)
-	handle.rotation.x = 0.35
-	StoreBuilder.box(scanner, Vector3(0.075, 0.08, 0.2), Vector3(0, 0.09, -0.07), plastic)
-	StoreBuilder.box(scanner, Vector3(0.09, 0.095, 0.05), Vector3(0, 0.1, -0.17), plastic)
-	StoreBuilder.box(scanner, Vector3(0.05, 0.03, 0.005), Vector3(0, 0.115, 0.032), StoreBuilder.mat(Color(0.5, 0.95, 0.2), 2.0))  # status screen
-	StoreBuilder.box(scanner, Vector3(0.07, 0.05, 0.005), Vector3(0, 0.1, -0.196), StoreBuilder.mat(Color(1, 0.1, 0.05), 2.5))
-	StoreBuilder.box(scanner, Vector3(0.03, 0.02, 0.02), Vector3(0, 0.05, -0.02), StoreBuilder.mat(Color(0.9, 0.75, 0.1)))  # trigger
-	beam = StoreBuilder.box(scanner, Vector3(0.06, 0.004, 1.2), Vector3(0, 0.1, -0.8), StoreBuilder.unshaded(Color(1, 0.1, 0.05, 0.6)))
+	var handle := StoreBuilder.box(scanner, Vector3(0.07, 0.22, 0.08), Vector3(0, 0.02, 0), plastic)
+	handle.rotation.x = 0.28
+	StoreBuilder.box(scanner, Vector3(0.11, 0.11, 0.24), Vector3(0, 0.15, -0.06), plastic)        # body
+	StoreBuilder.box(scanner, Vector3(0.13, 0.13, 0.07), Vector3(0, 0.155, -0.2), plastic)        # head
+	StoreBuilder.box(scanner, Vector3(0.05, 0.03, 0.005), Vector3(0, 0.175, 0.062), StoreBuilder.mat(Color(0.55, 0.95, 0.2), 1.5))  # status screen
+	StoreBuilder.box(scanner, Vector3(0.1, 0.08, 0.005), Vector3(0, 0.155, -0.236), StoreBuilder.mat(Color(1, 0.12, 0.05), 2.5))
+	StoreBuilder.box(scanner, Vector3(0.03, 0.05, 0.03), Vector3(0, 0.07, -0.06), StoreBuilder.mat(Color(0.25, 0.25, 0.27)))  # trigger
+	beam = StoreBuilder.box(scanner, Vector3(0.08, 0.004, 1.4), Vector3(0, 0.155, -0.95), StoreBuilder.unshaded(Color(1, 0.1, 0.05, 0.6)))
 	beam.visible = false
 	carry_node = Node3D.new()
 	carry_node.position = Vector3(-0.2, -0.05, -0.15)
@@ -166,7 +169,7 @@ func _physics_process(delta: float) -> void:
 	if hs > 0.5 and is_on_floor():
 		_bob += delta * hs * 2.6
 	cam.position.y = 1.62 + sin(_bob * 2.0) * 0.025
-	viewmodel.position = Vector3(0.24 + cos(_bob) * 0.008, -0.27 + absf(sin(_bob)) * 0.01, -0.42)
+	viewmodel.position = Vector3(0.27 + cos(_bob) * 0.008, -0.31 + absf(sin(_bob)) * 0.01, -0.55)
 	if _beam_t > 0.0:
 		_beam_t -= delta
 		if _beam_t <= 0.0:

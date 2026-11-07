@@ -58,7 +58,8 @@ func _ready() -> void:
 	hud.change_cancelled.connect(close_change)
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
-	player.position = Vector3(0.0, 0.05, 10.2)
+	player.position = Vector3(0.0, 0.05, 8.2)
+	player.rotation.y = 0.0
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(player)
 	player.prompt_changed.connect(hud.set_prompt)
@@ -380,14 +381,15 @@ func _self_tests() -> void:
 		shelves.slots[shelves.slot_index(2, 1, li, 3)].count = 0
 	var got: Dictionary = shelves.take(2, 1, StoreBuilder.SHELF_Z0 + 0.15 + 3.5 * shelves.slot_len)
 	miss = got.has("missing")
-	player.set_carry({"kind": "stock", "product": slot.product, "count": 3})
+	var n: int = mini(3, slot.cap)
+	player.set_carry({"kind": "stock", "product": slot.product, "count": n})
 	var placed := 0
-	for k in 3:
+	for k in n:
 		if shelves.place(i, slot.product) == "":
 			player.use_stock_unit()
 			placed += 1
 	var wrong := shelves.place(i, (slot.product + 1) % Products.CATALOG.size()) != ""
-	test_results["stocking"] = miss and placed == 3 and slot.count == 3 and player.carrying.is_empty() and wrong
+	test_results["stocking"] = miss and placed == n and slot.count == n and player.carrying.is_empty() and wrong
 	# trash loop
 	trash = 0.9
 	on_interact(store.can.body, player)
@@ -410,15 +412,19 @@ func debug_pose(shot: String) -> void:
 	player.cam.rotation.x = 0.0
 	match shot:
 		"interior":
-			player.position = Vector3(0.0, 0.05, 11.2)
-			player.rotation.y = 0.0
-			player.cam.rotation.x = deg_to_rad(-9)
+			player.position = Vector3(0.0, 0.05, 11.3)
+			player.rotation.y = deg_to_rad(2)
+			player.cam.rotation.x = deg_to_rad(-7)
 		"outside":
-			player.position = Vector3(BACK_DOOR_POS().x - 1.0, 0.05, StoreBuilder.ROOM_Z - 9.5)
-			player.rotation.y = deg_to_rad(10)
+			player.position = Vector3(BACK_DOOR_POS().x - 1.0, 0.05, StoreBuilder.ROOM_Z - 9.0)
+			player.rotation.y = PI - 0.42
 			player.cam.rotation.x = deg_to_rad(-6)
+		"stockroom":
+			player.position = Vector3(10.5, 0.05, StoreBuilder.ZB - 1.0)
+			player.rotation.y = deg_to_rad(35)
+			player.cam.rotation.x = deg_to_rad(-12)
 		"front":
-			player.position = Vector3(2.0, 0.05, 27.0)
+			player.position = Vector3(-1.0, 0.05, 28.5)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-3)
 

@@ -9,7 +9,7 @@ var game: Node = null
 var failed := false
 
 func _initialize() -> void:
-	Engine.time_scale = 6.0
+	Engine.time_scale = 10.0
 	var scene: PackedScene = load("res://scenes/main.tscn")
 	if scene == null:
 		push_error("SMOKE: main scene failed to load")

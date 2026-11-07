@@ -32,62 +32,62 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - CI runs on every push to `main`. Put `[skip ci]` in commit messages for WIP pushes.
 
 ## Folder map
-- `project.godot` — settings, input map (WASD, Shift sprint, E/click interact, Space jump).
-- `export_presets.cfg` — Windows + macOS presets.
-- `scenes/menu.tscn` + `scripts/menu.gd` — main menu (Start Shift / Quit).
-- `scenes/main.tscn` + `scripts/game.gd` — game controller: builds store, spawns player
-  and customers, shift clock, earnings, pause + end-of-shift summary.
-- `scripts/store_builder.gd` — builds the store geometry, lights, shelves, freezer, checkouts.
-- `scripts/player.gd` — first-person controller + interact raycast.
-- `scripts/customer.gd` — low-poly person, waypoint AI (enter → shop → queue → pay → leave).
-- `scripts/register.gd` — checkout lane: queue, belt items, scanning, total, payment.
-- `scripts/hud.gd` — HUD (NIGHT SHIFT + clock, $ earnings, crosshair, prompts, pause, summary).
-- `scripts/products.gd` — product catalog (names, prices, colors).
-- `tests/` — smoke test + screenshot script.
-- `docs/concept/` — approved concept art (store.jpg, customer.jpg). Has `.gdignore`.
+- `project.godot`: settings and the input map (WASD, Shift sprint, Space jump, E/click interact (hold to stock), Q put a stock box back, Esc pause). Version 1.1.
+- `export_presets.cfg`: Windows and macOS presets.
+- `scenes/menu.tscn` + `scripts/menu.gd`: main menu (Start Shift / Quit, shows the version).
+- `scenes/main.tscn` + `scripts/game.gd`: game controller. Builds the world and spawns the player, registers and customers. Runs the shift clock, the auto door and back door, trash fill, task hints, the cash-drawer flow, stats and the summary. Also the interact target for crates, the trash can, the dumpster, the back door and the gun locker. Test hooks are at the bottom.
+- `scripts/store_builder.gd`: all geometry and lights for the store, stockroom, outside lot, fence, dumpster, cars and gun locker. Also holds the floor shader and the material cache.
+- `scripts/shelves.gd` (`ShelfSystem`): shelf frames and stock slots (6 rows x 2 faces x 4 levels x 8 slots). Products are drawn with 2 MultiMeshes (boxes + labels). `take()` for customers, `place()` for the player, low-stock queries.
+- `scripts/interact.gd` (`Interact`): generic collider that forwards `interact`/`get_prompt`/`hold_interact` to a target, with a `tag`.
+- `scripts/player.gd`: first-person controller, scanner viewmodel, carrying (stock box / trash bag), hold-to-use.
+- `scripts/customer.gd`: low-poly person with hoodies/tees, hair styles, a simple face and a red basket. Runs the waypoint AI, waits for the player and other customers, gets annoyed when items are out of stock, and picks cash or card.
+- `scripts/register.gd`: checkout lane with the queue, belt items, scanning, and payment (card tap, or cash with change counted in the HUD drawer). Money is in cents.
+- `scripts/belt_item.gd`: scannable product on the belt.
+- `scripts/hud.gd`: concept-style HUD, task hints, pause (with settings sliders), cash-drawer panel and the summary.
+- `scripts/products.gd`: product catalog (shelf items vs freezer items).
+- `scripts/sfx.gd`: all sounds synthesized in code (beep, cha-ching, chime, hum loop and more).
+- `scripts/settings.gd`: mouse sensitivity and volume, saved to `user://settings.cfg`.
+- `tests/smoke_test.gd`: headless test that also self-tests change math, stocking, the trash loop and the locker. `tests/screenshot.gd` renders the doc shots.
+- `docs/concept/`: approved concept art. `docs/screenshot_*.png`: in-game renders.
 
-## Store layout (meters, origin at store center, +Z = front/entrance)
-- Store 24 x 30 (x -12..12, z -15..15), ceiling 4.
-- Shelf rows along Z at x = -8, -4, 0, 4, 8 spanning z -9..1. Aisle centers x = -10,-6,-2,2,6,10.
-- Cross corridors: back z = -11 (freezer along back wall z ≈ -14), front z = 3.
-- Checkout lanes: customer lane x = -6 and -2, counter at lane-1, cashier at lane-1.9,
-  counters z 5..9. Entrance/exit doors at x = 7, z = 15.
-- Customers path only along corridors (waypoints), so no navmesh is needed.
+## World layout (meters, +Z = front/entrance)
+- Store interior x -12..12, z -11 (back wall, `ZB`) .. 15 (glass storefront). Ceiling at 3.6.
+- Shelf rows at x = -9.5, -6.5, -3, 3, 6.5, 9.5, spanning z -6..0.5, with a wide center aisle (x -2.4..2.4) that looks straight at the freezer.
+- Customer aisles (x): -11, -8, -4.75, 0 (center, stands at ±1.7), 4.75, 8, 11. Cross corridors run at z = 3 (front) and z = -7.4 (back).
+- Freezer: glass-door case on the back wall, x -4.2..4.2, with the "FREEZER AISLE ->" sign above it.
+- Checkouts: counters at x ±1.6 over z 4.9..9.1, with the registers at the z 8.5 end. Customers queue at x ±2.6. The cashier stands between the counters (x ~0).
+- Front automatic sliding door at x = 7 (z = 15). Glass storefront plus a left-wall window band.
+- Stockroom: x 2..12, z -11..-18, reached through a doorway at x = 7 in the back wall ("EMPLOYEES ONLY"). It has a stock rack with one crate per shelf product, the gun locker on its west wall, and a swinging back door at x = 9.7 (z = -18) that opens to the back lot.
+- Outside: asphalt lot fenced at x -26..26, z -33..31, with street lamps, wall lamps, 2 parked cars and the dumpster behind the stockroom.
+- Trash can behind lane 1 at (-4.6, 12.6).
 
 ## Status
 <!-- STATUS-START -->
-### v1.1 (in progress)
-- [x] Look pass 1 (concept-style lighting, HUD, scanner viewmodel, beige registers, customers)
-- [x] Stocking, trash->dumpster, doors, glass windows, change-making, gun locker placeholder (first pass, smoke-tested)
-- [ ] Look pass 2 (compare to docs/concept/store.jpg), docs, final CI
+### v1.1 (current)
+- [x] Look matched to the concept art: warm dim lighting, a dark gridded ceiling with fluorescent strips (2 flicker), a tiled floor shader, packed colorful shelves with labels and price tags, a glowing freezer and "FREEZER AISLE ->" sign, beige boxy registers with belts, cardboard clutter, the scanner-in-hand viewmodel, and the concept-style HUD. See `docs/screenshot_1.1_interior.png`.
+- [x] Customers restyled: hoodies or tees, jeans, sneakers, 5 hair styles, faces. They wait for the player and other customers instead of walking through them.
+- [x] Stocking: shelves start partly stocked and deplete. Grab a crate in the stockroom (E), hold E on a matching shelf spot, Q puts it back. Out-of-stock items annoy customers. HUD shows LOW STOCK.
+- [x] Trash: the can fills over time and with each sale. Carry the bag out the back door (or the front door) to the dumpster for a $1.50 bonus.
+- [x] Doors: the automatic front sliding door opens for the player and customers (the invisible wall is gone). The swinging back door uses E.
+- [x] Glass windows: storefront and left wall, see-through both ways. The outside lot has lamps, cars and a fence.
+- [x] Making change: about 70% of customers pay cash, often over the total. The register screen shows TOTAL/CASH/CHANGE. E opens the cash drawer panel ($20…1¢), then GIVE CHANGE. Correct change can earn a tip. Short change brings a complaint (-$2). Over-giving loses you the extra. Card customers just need E.
+- [x] Gun locker placeholder in the stockroom (shotgun behind glass, padlock): "LOCKED - For emergencies only".
+- [x] Extras: synthesized hum and SFX, settings sliders in pause (mouse sensitivity, volume), and an expanded end-of-shift summary.
 
 ### v0.1 baseline
-- [x] (a) Repo + project skeleton + HANDOFF + CI
-- [x] (b) Store layout + lighting + HUD
-- [x] (c) Player movement
-- [x] (d) Customers
-- [x] (e) Register / checkout + earnings
-- [x] (f) Shift clock + summary + menu
-- [x] CI green: run 42333935839 (Windows zip 33 MB, Mac zip 58 MB)
-- [ ] Next: multiplayer (see Roadmap #1)
+- [x] (a)-(f) skeleton/CI, store, player, customers, checkout, clock/summary/menu
+- [ ] Next: multiplayer + proximity voice (Roadmap #1-2)
 <!-- STATUS-END -->
 
-### What works (baseline 0.1.0)
-- Main menu (Start Shift / Quit), first-person walk/sprint/jump, Esc pause (Resume / Quit to Menu).
-- Store: shelves with ~1k product boxes (one MultiMesh), glowing freezer, 2 checkout lanes,
-  12 fluorescent lights (2 flicker), dark windows + parking lot lamps.
-- Customers (randomized skin/hair/clothes/height, caps) enter, visit 2-4 shelf/freezer stops,
-  fill a red basket, pick the shorter lane, queue, unload onto the belt, pay, leave.
-  They give up after 150 s waiting (counted in the summary).
-- Scan belt items with E/click (beep + screen flash), register screen shows items + total,
-  earnings in HUD, toast on payment.
-- Shift clock 10:00 PM -> 6:00 AM over 10 real minutes, end-of-shift summary.
+### Known issues / rough edges (1.1)
+- Customers are kinematic (waypoints only). They stop for the player and each other but don't path around. If you stand in a lane, they wait ("Excuse me!").
+- Freezer items never run out (only aisle shelves are stockable).
+- Product labels are colored stripes, not real text. Crate labels in the stockroom are text.
+- Tuning (spawn 10-22 s, max 7 customers, patience 150 s, trash fill 150 s) has not been playtested.
 
-### Known issues / rough edges
-- Customers ignore physics (kinematic waypoints); they can clip through the player.
-- Front door is an invisible wall for the player (staff can't leave mid-shift).
-- No music/ambience yet; beep is a generated tone. No settings menu (mouse sensitivity fixed).
-- Tuning (spawn rate 10-22 s, max 7 customers, patience 150 s) is untested with humans.
+## TODO: gun locker (for the monster update)
+- The locker is built in `StoreBuilder._stockroom()` (node at the stockroom west wall, `out.locker` Interact with tag `{"kind": "locker"}`). The interaction is in `game.gd` `on_interact`/`get_prompt_for` → "locker".
+- When the monster arrives, unlock it (e.g. after the monster first appears, or with a manager key). Swap the placeholder shotgun meshes for a pickup: `player.set_carry({"kind": "shotgun"})` plus a viewmodel and a fire raycast. Decide whether it is a stun/"broom" or a real gun for the tone.
 
 ## Roadmap (after baseline)
 1. **Multiplayer**: Godot high-level multiplayer (ENet/WebSocket), host + clients, synced

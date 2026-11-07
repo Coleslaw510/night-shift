@@ -5,7 +5,7 @@ var frames := 0
 var game: Node
 var outdir := "user://"
 # frame -> [pose, filename]
-var plan := {150: ["interior", "interior"], 170: ["outside", "outside"], 190: ["front", "front"], 215: ["change", "register_change"]}
+var plan := {150: ["interior", "interior"], 170: ["outside", "outside"], 190: ["front", "front"], 205: ["stockroom", "stockroom"], 225: ["change", "register_change"]}
 var pending := ""
 
 func _initialize() -> void:
@@ -41,4 +41,4 @@ func _process(_d: float) -> bool:
 				game.debug_pose(pose)
 		if frames == f:
 			pending = plan[f][1]
-	return frames >= 220
+	return frames >= 230

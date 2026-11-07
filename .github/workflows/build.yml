@@ -32,19 +32,19 @@ jobs:
           mkdir -p build/windows
           godot --headless --export-release "Windows Desktop" build/windows/NightShift.exe
           cp README.md build/windows/README.txt
-          cd build/windows && zip -r ../NightShift-Windows.zip .
+          cd build/windows && zip -r ../NightShift-1.1-Windows.zip .
       - name: Export macOS
         run: |
           mkdir -p build/mac
-          godot --headless --export-release "macOS" build/mac/NightShift-Mac.zip
+          godot --headless --export-release "macOS" build/mac/NightShift-1.1-Mac.zip
           ls -la build/mac
       - uses: actions/upload-artifact@v4
         with:
-          name: NightShift-Windows
-          path: build/NightShift-Windows.zip
+          name: NightShift-1.1-Windows
+          path: build/NightShift-1.1-Windows.zip
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
-          name: NightShift-Mac
-          path: build/mac/NightShift-Mac.zip
+          name: NightShift-1.1-Mac
+          path: build/mac/NightShift-1.1-Mac.zip
           compression-level: 0

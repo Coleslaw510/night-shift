@@ -10,7 +10,7 @@ enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING }
 
 const AISLES := [-11.0, -8.0, -4.75, 0.0, 4.75, 8.0, 11.0]
 const FRONT_Z := 3.0
-const BACK_Z := -11.3
+const BACK_Z := -7.4
 const PATIENCE := 150.0
 
 var state := S.ENTER
@@ -228,7 +228,7 @@ func _next_stop() -> void:
 	var target: Vector3
 	_stop_row = -1
 	if randf() < 0.25:
-		target = Vector3(randf_range(-3.4, 3.4), 0, -12.9)
+		target = Vector3(randf_range(-3.4, 3.4), 0, StoreBuilder.ZB + 2.0)
 		face_dir = Vector3(0, 0, -1)
 	else:
 		var ax: float = AISLES.pick_random()
@@ -239,7 +239,7 @@ func _next_stop() -> void:
 		_stop_side = -int(side)
 		if absf(ax) < 0.1:
 			ax = side * 1.7   # wide center aisle: walk up close to the shelf
-		target = Vector3(ax, 0, randf_range(-8.4, 0.0))
+		target = Vector3(ax, 0, randf_range(StoreBuilder.SHELF_Z0 + 0.6, 0.0))
 	path = _path_to(target)
 
 func _nearest_shelf(x: float) -> float:
@@ -250,7 +250,7 @@ func _nearest_shelf(x: float) -> float:
 	return best
 
 func _path_to(target: Vector3) -> Array:
-	if position.z < -12.0:  # at the freezer: step back into the back corridor first
+	if position.z < BACK_Z - 0.5:  # at the freezer: step back into the back corridor first
 		var from := Vector3(position.x, 0, BACK_Z)
 		var pts: Array = [from]
 		pts.append_array(_route(from, target))

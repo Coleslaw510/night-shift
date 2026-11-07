@@ -7,14 +7,15 @@ const W := 24.0
 const D := 30.0
 const H := 3.6
 const SHELF_X := [-9.5, -6.5, -3.0, 3.0, 6.5, 9.5]
-const SHELF_Z0 := -9.0
+const SHELF_Z0 := -6.0
 const SHELF_Z1 := 0.5
-const LANE_X := [-3.0, 3.0]          # customer side of each checkout lane
-const COUNTER_X := [-2.0, 2.0]       # counters; cashier stands between them (x ~ 0)
+const LANE_X := [-2.6, 2.6]          # customer side of each checkout lane
+const COUNTER_X := [-1.6, 1.6]       # counters; cashier stands between them (x ~ 0)
 const DOOR_X := 7.0                  # front automatic door
 const STOCK_DOOR_X := 7.0            # doorway from store into stockroom (back wall)
 const BACK_DOOR_X := 9.7             # stockroom back door to the back lot
-const ROOM_Z := -22.0                # stockroom back wall
+const ZB := -11.0                     # store back wall (inner face); front wall is at +D/2
+const ROOM_Z := -18.0                # stockroom back wall
 const FENCE := Rect2(-26, -33, 52, 64)
 
 static var _mats := {}
@@ -149,7 +150,7 @@ static func _environment(root: Node3D) -> void:
 	env.background_color = Color(0.008, 0.01, 0.018)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.5, 0.45, 0.38)
-	env.ambient_light_energy = 0.22
+	env.ambient_light_energy = 0.3
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 1.0
 	env.glow_enabled = true
@@ -169,34 +170,36 @@ static func _environment(root: Node3D) -> void:
 static func _floor_and_ceiling(store: Node3D) -> void:
 	var hw := W * 0.5
 	var hd := D * 0.5
-	var fm := tiled_floor(0.6, Color(0.24, 0.235, 0.225), Color(0.2, 0.195, 0.19), Color(0.1, 0.1, 0.1))
+	var fm := tiled_floor(0.6, Color(0.31, 0.3, 0.28), Color(0.28, 0.27, 0.26), Color(0.18, 0.18, 0.17))
 	# Floor split in 4x5 m tiles so each mesh gets few lights (Compatibility renderer limit).
+	var depth := hd - ZB
+	var zc := (hd + ZB) * 0.5
 	var x := -hw
 	while x < hw - 0.01:
-		var z := -hd
+		var z := ZB
 		while z < hd - 0.01:
-			box(store, Vector3(4, 0.1, 5), Vector3(x + 2, -0.05, z + 2.5), fm)
-			z += 5
+			box(store, Vector3(4, 0.1, depth / 4.0), Vector3(x + 2, -0.05, z + depth / 8.0), fm)
+			z += depth / 4.0
 		x += 4
 	# Stockroom floor (concrete)
 	var cm := tiled_floor(1.5, Color(0.3, 0.3, 0.29), Color(0.28, 0.28, 0.27), Color(0.18, 0.18, 0.18))
-	box(store, Vector3(10, 0.1, 7), Vector3(7, -0.05, -18.5), cm)
+	box(store, Vector3(10, 0.1, ZB - ROOM_Z), Vector3(7, -0.05, (ZB + ROOM_Z) * 0.5), cm)
 	# Ceiling: dark panels + grid
 	var ceil_m := mat(Color(0.13, 0.13, 0.13), 0.0, 0.95)
 	var grid_m := mat(Color(0.06, 0.06, 0.06))
-	box(store, Vector3(W, 0.12, D), Vector3(0, H + 0.06, 0), ceil_m)
-	box(store, Vector3(10, 0.12, 7), Vector3(7, H + 0.06, -18.5), ceil_m)
+	box(store, Vector3(W, 0.12, depth), Vector3(0, H + 0.06, zc), ceil_m)
+	box(store, Vector3(10, 0.12, ZB - ROOM_Z), Vector3(7, H + 0.06, (ZB + ROOM_Z) * 0.5), ceil_m)
 	var gx := -hw + 1.2
 	while gx < hw:
-		box(store, Vector3(0.04, 0.03, D), Vector3(gx, H - 0.01, 0), grid_m)
+		box(store, Vector3(0.04, 0.03, depth), Vector3(gx, H - 0.01, zc), grid_m)
 		gx += 1.2
-	var gz := -hd + 1.2
+	var gz := ZB + 1.2
 	while gz < hd:
 		box(store, Vector3(W, 0.03, 0.04), Vector3(0, H - 0.01, gz), grid_m)
 		gz += 1.2
 	# Roof (seen from outside)
-	box(store, Vector3(W + 0.6, 0.3, D + 0.6), Vector3(0, H + 0.27, 0), mat(Color(0.12, 0.11, 0.1)))
-	box(store, Vector3(10.6, 0.3, 7.6), Vector3(7, H + 0.27, -18.5), mat(Color(0.12, 0.11, 0.1)))
+	box(store, Vector3(W + 0.6, 0.3, depth + 0.6), Vector3(0, H + 0.27, zc), mat(Color(0.12, 0.11, 0.1)))
+	box(store, Vector3(10.6, 0.3, ZB - ROOM_Z + 0.6), Vector3(7, H + 0.27, (ZB + ROOM_Z) * 0.5), mat(Color(0.12, 0.11, 0.1)))
 
 static func _wall_seg(store: Node3D, a: Vector3, b: Vector3, m: Material, h := H, y0 := 0.0, thick := 0.2, collide := true) -> void:
 	# Axis-aligned wall from a to b (x or z aligned).
@@ -217,22 +220,22 @@ static func _walls(store: Node3D, out: Dictionary) -> void:
 	var frame := mat(Color(0.12, 0.12, 0.13), 0.0, 0.4, 0.6)
 	var glass := mat(Color(0.55, 0.65, 0.75, 0.16), 0.0, 0.05, 0.2)
 	# Right wall (solid)
-	_wall_seg(store, Vector3(hw + 0.1, 0, -hd), Vector3(hw + 0.1, 0, hd), wall)
+	_wall_seg(store, Vector3(hw + 0.1, 0, ZB), Vector3(hw + 0.1, 0, hd), wall)
 	# Left wall: windows like the concept (kick wall + glass band + header)
-	_wall_seg(store, Vector3(-hw - 0.1, 0, -hd), Vector3(-hw - 0.1, 0, hd), wall, 0.9)
-	_wall_seg(store, Vector3(-hw - 0.1, 0, -hd), Vector3(-hw - 0.1, 0, hd), wall, H - 2.8, 2.8)
-	_wall_seg(store, Vector3(-hw - 0.1, 0, -hd + 1), Vector3(-hw - 0.1, 0, hd - 1), glass, 1.9, 0.9, 0.04, false)
-	add_collider(store, Vector3(0.3, H, D), Vector3(-hw - 0.1, H * 0.5, 0))
-	var z := -hd
+	_wall_seg(store, Vector3(-hw - 0.1, 0, ZB), Vector3(-hw - 0.1, 0, hd), wall, 0.9)
+	_wall_seg(store, Vector3(-hw - 0.1, 0, ZB), Vector3(-hw - 0.1, 0, hd), wall, H - 2.8, 2.8)
+	_wall_seg(store, Vector3(-hw - 0.1, 0, ZB + 1), Vector3(-hw - 0.1, 0, hd - 1), glass, 1.9, 0.9, 0.04, false)
+	add_collider(store, Vector3(0.3, H, hd - ZB), Vector3(-hw - 0.1, H * 0.5, (hd + ZB) * 0.5))
+	var z := ZB
 	while z <= hd + 0.01:
 		box(store, Vector3(0.24, 1.9, 0.14), Vector3(-hw - 0.1, 1.85, z), frame)
 		z += 3.0
 	# Back wall with stockroom doorway (gap STOCK_DOOR_X +- 1.0)
-	_wall_seg(store, Vector3(-hw, 0, -hd - 0.1), Vector3(STOCK_DOOR_X - 1.0, 0, -hd - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X + 1.0, 0, -hd - 0.1), Vector3(hw, 0, -hd - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X - 1.0, 0, -hd - 0.1), Vector3(STOCK_DOOR_X + 1.0, 0, -hd - 0.1), wall, H - 2.6, 2.6)
-	box(store, Vector3(1.6, 0.25, 0.05), Vector3(STOCK_DOOR_X, 2.9, -hd + 0.02), mat(Color(0.75, 0.1, 0.08), 1.2))
-	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.9, -hd + 0.05), 40, Color(1, 0.95, 0.9))
+	_wall_seg(store, Vector3(-hw, 0, ZB - 0.1), Vector3(STOCK_DOOR_X - 1.0, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X + 1.0, 0, ZB - 0.1), Vector3(hw, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X - 1.0, 0, ZB - 0.1), Vector3(STOCK_DOOR_X + 1.0, 0, ZB - 0.1), wall, H - 2.6, 2.6)
+	box(store, Vector3(1.6, 0.25, 0.05), Vector3(STOCK_DOOR_X, 2.9, ZB + 0.02), mat(Color(0.75, 0.1, 0.08), 1.2))
+	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.9, ZB + 0.05), 40, Color(1, 0.95, 0.9))
 	# Front storefront: real glass both sides of the door gap
 	var g0 := DOOR_X - 1.15
 	var g1 := DOOR_X + 1.15
@@ -265,11 +268,11 @@ static func _walls(store: Node3D, out: Dictionary) -> void:
 	box(store, Vector3(2.4, 0.02, 1.4), Vector3(DOOR_X, 0.005, hd - 0.9), mat(Color(0.07, 0.07, 0.08)))
 	# Inner wall trim stripe
 	for s in [-1, 1]:
-		box(store, Vector3(0.04, 0.12, D), Vector3(s * (hw - 0.01), 0.06, 0), trim)
-	box(store, Vector3(W, 0.12, 0.04), Vector3(0, 0.06, -hd + 0.01), trim)
+		box(store, Vector3(0.04, 0.12, hd - ZB), Vector3(s * (hw - 0.01), 0.06, (hd + ZB) * 0.5), trim)
+	box(store, Vector3(W, 0.12, 0.04), Vector3(0, 0.06, ZB + 0.01), trim)
 	# Exterior skin on the solid walls + the store sign
-	box(store, Vector3(0.05, H, D + 0.4), Vector3(hw + 0.23, H * 0.5, 0), ext)
-	box(store, Vector3(W + 0.4, H, 0.05), Vector3(0, H * 0.5, -hd - 0.23), ext)
+	box(store, Vector3(0.05, H, hd - ZB + 0.4), Vector3(hw + 0.23, H * 0.5, (hd + ZB) * 0.5), ext)
+	box(store, Vector3(W + 0.4, H, 0.05), Vector3(0, H * 0.5, ZB - 0.23), ext)
 	box(store, Vector3(9, 0.9, 0.2), Vector3(-2, H + 0.75, hd + 0.05), mat(Color(0.1, 0.1, 0.1)))
 	label(store, "NIGHT SHIFT MART", Vector3(-2, H + 0.75, hd + 0.17), 120, Color(1.0, 0.25, 0.2), 0.0, 0.007)
 	label(store, "OPEN 24 HOURS", Vector3(-8.5, 2.6, hd + 0.05), 48, Color(0.3, 1.0, 0.5), 0.0, 0.006)
@@ -278,7 +281,7 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 	var housing := mat(Color(0.2, 0.2, 0.2), 0.0, 0.5, 0.3)
 	var tube := mat(Color(1.0, 0.96, 0.86), 5.0)
 	for fx in [-6.0, 0.0, 6.0]:
-		for fz in [-11.0, -4.0, 3.0, 10.0]:
+		for fz in [-8.0, -2.0, 4.0, 10.0]:
 			var f := Node3D.new()
 			f.position = Vector3(fx, H - 0.08, fz)
 			store.add_child(f)
@@ -287,9 +290,9 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 				box(f, Vector3(0.12, 0.04, 2.36), Vector3(tx, -0.06, 0), tube)
 			var l := OmniLight3D.new()
 			l.light_color = Color(1.0, 0.9, 0.74)
-			l.light_energy = 0.75
-			l.omni_range = 9.0
-			l.omni_attenuation = 1.4
+			l.light_energy = 1.0
+			l.omni_range = 10.5
+			l.omni_attenuation = 1.0
 			l.position = Vector3(fx, H - 0.45, fz)
 			store.add_child(l)
 			l.set_meta("fixture", f)
@@ -297,14 +300,15 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 			out.lights.append(l)
 
 static func _freezer(store: Node3D) -> void:
-	var z := -D * 0.5 + 0.6
+	var z := ZB + 0.6
 	var body := mat(Color(0.22, 0.22, 0.24), 0.0, 0.5, 0.4)
-	var glow := mat(Color(0.75, 0.9, 1.0), 1.6)
+	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
 	var glass := mat(Color(0.7, 0.88, 1.0, 0.2), 0.3, 0.05)
 	var frame := mat(Color(0.75, 0.78, 0.8), 0.0, 0.3, 0.7)
 	box(store, Vector3(8.4, 2.5, 1.2), Vector3(0, 1.25, z), body)
 	add_collider(store, Vector3(8.4, 2.5, 1.3), Vector3(0, 1.25, z))
-	box(store, Vector3(8.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.1), glow)   # glowing back
+	box(store, Vector3(8.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.1), glow)
+	box(store, Vector3(8.0, 0.06, 0.5), Vector3(0, 2.28, z + 0.2), mat(Color(0.9, 0.97, 1.0), 4.0))  # top light strip   # glowing back
 	# shelves + frozen goods inside
 	var xf: Array = []
 	var cols: Array = []
@@ -334,8 +338,8 @@ static func _freezer(store: Node3D) -> void:
 	fl.position = Vector3(0, 1.3, z + 1.4)
 	store.add_child(fl)
 	# "FREEZER AISLE ->" sign (dark plate, light text)
-	box(store, Vector3(3.4, 0.5, 0.06), Vector3(0, 3.15, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
-	label(store, "FREEZER AISLE ->", Vector3(0, 3.15, z + 0.44), 64, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
+	box(store, Vector3(4.6, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
+	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
 
 static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
@@ -367,7 +371,7 @@ static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 	var beige_d := mat(Color(0.5, 0.47, 0.41), 0.0, 0.7)
 	var steel := mat(Color(0.42, 0.43, 0.44), 0.0, 0.35, 0.6)
 	var belt_m := mat(Color(0.06, 0.06, 0.065), 0.0, 0.85)
-	var counter_m := mat(Color(0.3, 0.3, 0.31), 0.0, 0.6, 0.2)
+	var counter_m := mat(Color(0.4, 0.4, 0.4), 0.0, 0.6, 0.2)
 	for i in LANE_X.size():
 		var lx: float = LANE_X[i]
 		var cx: float = COUNTER_X[i]
@@ -398,6 +402,7 @@ static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 		box(root, Vector3(0.08, 0.28, 0.08), Vector3(cx - face * 0.12, 1.36, rz), beige_d)   # stand
 		var mon := Node3D.new()
 		mon.position = Vector3(cx - face * 0.12, 1.62, rz)
+		mon.rotation.y = -face * PI * 0.25
 		root.add_child(mon)
 		box(mon, Vector3(0.36, 0.32, 0.4), Vector3.ZERO, beige)
 		var scr := box(mon, Vector3(0.02, 0.24, 0.32), Vector3(face * 0.181, 0, 0), mat(Color(0.05, 0.2, 0.08), 1.4))
@@ -405,9 +410,8 @@ static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 		box(root, Vector3(0.06, 0.04, 0.04), Vector3(cx + face * 0.3, 1.1, rz + 0.18), mat(Color(0.1, 1.0, 0.3), 3.0))
 		# bagging area + lane pole
 		box(root, Vector3(0.9, 0.05, 0.6), Vector3(cx, 0.9, 9.45), steel)
-		box(root, Vector3(0.05, 1.5, 0.05), Vector3(cx + face * 0.4, 1.6, 9.0), mat(Color(0.15, 0.15, 0.15)))
-		box(root, Vector3(0.14, 0.2, 0.14), Vector3(cx + face * 0.4, 2.4, 9.0), mat(Color(0.2, 0.9, 0.4), 2.0))
-		label(root, str(i + 1), Vector3(cx + face * 0.4, 2.7, 9.0), 64, Color(0.9, 1, 0.9), 0.0, 0.004).billboard = BaseMaterial3D.BILLBOARD_FIXED_Y
+		var lnum := label(root, "LANE %d" % (i + 1), Vector3(cx, 0.7, 9.12), 28, Color(0.7, 0.7, 0.65), 0.0, 0.0025)
+		lnum.modulate.a = 0.8
 		# interact collider around register (target = register script, set by game)
 		var it := Interact.make(root, Vector3(0.7, 0.75, 0.6), Vector3(cx, 1.35, rz), null, {"kind": "register", "lane": i})
 		out.lanes.append({"index": i, "lane_x": lx, "counter_x": cx, "cash_x": cash_x, "face": face, "root": root, "label": lab, "screen": scr, "terminal": it})
@@ -428,8 +432,8 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	var x0 := 2.0
 	var x1 := W * 0.5
 	var hd := D * 0.5
-	_wall_seg(store, Vector3(x0, 0, -hd), Vector3(x0, 0, ROOM_Z), wall)
-	_wall_seg(store, Vector3(x1 + 0.1, 0, -hd), Vector3(x1 + 0.1, 0, ROOM_Z), wall)
+	_wall_seg(store, Vector3(x0, 0, ZB), Vector3(x0, 0, ROOM_Z), wall)
+	_wall_seg(store, Vector3(x1 + 0.1, 0, ZB), Vector3(x1 + 0.1, 0, ROOM_Z), wall)
 	_wall_seg(store, Vector3(x0, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X - 0.65, 0, ROOM_Z - 0.1), wall)
 	_wall_seg(store, Vector3(BACK_DOOR_X + 0.65, 0, ROOM_Z - 0.1), Vector3(x1, 0, ROOM_Z - 0.1), wall)
 	_wall_seg(store, Vector3(BACK_DOOR_X - 0.65, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X + 0.65, 0, ROOM_Z - 0.1), wall, H - 2.4, 2.4)
@@ -438,9 +442,9 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	l.light_color = Color(1.0, 0.82, 0.55)
 	l.light_energy = 1.0
 	l.omni_range = 8.0
-	l.position = Vector3(7, H - 0.6, -18.5)
+	l.position = Vector3(7, H - 0.6, (ZB + ROOM_Z) * 0.5)
 	store.add_child(l)
-	box(store, Vector3(0.15, 0.15, 0.15), Vector3(7, H - 0.4, -18.5), mat(Color(1.0, 0.85, 0.6), 4.0))
+	box(store, Vector3(0.15, 0.15, 0.15), Vector3(7, H - 0.4, (ZB + ROOM_Z) * 0.5), mat(Color(1.0, 0.85, 0.6), 4.0))
 	# Pallet rack along the back wall: one stock crate per shelf product (2 levels)
 	var steel := mat(Color(0.2, 0.35, 0.6), 0.0, 0.5, 0.4)
 	var orange := mat(Color(0.85, 0.45, 0.1), 0.0, 0.5, 0.4)
@@ -473,9 +477,18 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	out.back_door = {"hinge": hinge, "body": door_it}
 	box(store, Vector3(0.3, 0.3, 0.1), Vector3(BACK_DOOR_X, 2.65, ROOM_Z - 0.2), mat(Color(0.2, 1.0, 0.4), 2.0))  # exit light
 	label(store, "EXIT", Vector3(BACK_DOOR_X, 2.65, ROOM_Z + 0.02), 40, Color(0.7, 1, 0.7))
+	# Wall-pack lamps outside (back door + front corners)
+	for wp in [Vector3(BACK_DOOR_X, 2.9, ROOM_Z - 0.35), Vector3(-W * 0.5 + 0.5, 3.0, D * 0.5 + 0.4), Vector3(W * 0.5 - 0.5, 3.0, D * 0.5 + 0.4)]:
+		box(store, Vector3(0.35, 0.22, 0.25), wp, mat(Color(1.0, 0.75, 0.45), 3.0))
+		var wl := OmniLight3D.new()
+		wl.light_color = Color(1.0, 0.72, 0.42)
+		wl.light_energy = 2.2
+		wl.omni_range = 9.0
+		wl.position = wp + Vector3(0, -0.3, -0.5 if wp.z < 0 else 0.5)
+		store.add_child(wl)
 	# Gun locker on the stockroom's west wall (placeholder for the monster update)
 	var lk := Node3D.new()
-	lk.position = Vector3(x0 + 0.3, 0, -17.5)
+	lk.position = Vector3(x0 + 0.3, 0, ZB - 2.3)
 	store.add_child(lk)
 	var green := mat(Color(0.18, 0.26, 0.2), 0.0, 0.5, 0.5)
 	box(lk, Vector3(0.45, 1.7, 0.9), Vector3(0, 1.05, 0), green)
@@ -493,7 +506,7 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	label(lk, "EMERGENCY ONLY", Vector3(0.255, 2.05, 0), 36, Color(1, 0.95, 0.9), PI * 0.5, 0.003)
 	out.locker = Interact.make(lk, Vector3(0.5, 1.8, 0.95), Vector3(0.05, 1.05, 0), target, {"kind": "locker"})
 	# Cardboard clutter in the stockroom
-	for c in [Vector3(11.3, 0, -16.0), Vector3(11.3, 0.42, -16.1), Vector3(10.6, 0, -16.2), Vector3(11.2, 0, -20.8)]:
+	for c in [Vector3(11.3, 0, ZB - 1.0), Vector3(11.3, 0.42, ZB - 1.1), Vector3(10.6, 0, ZB - 1.2), Vector3(11.2, 0, ROOM_Z + 1.2)]:
 		_clutter_box(store, c, Vector3(0.7, 0.42, 0.55))
 
 static func _clutter_box(parent: Node, pos: Vector3, s: Vector3, rot := 0.0) -> void:
@@ -505,13 +518,13 @@ static func _clutter_box(parent: Node, pos: Vector3, s: Vector3, rot := 0.0) -> 
 
 static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 	var f: Rect2 = FENCE
-	var asphalt := tiled_floor(4.0, Color(0.075, 0.075, 0.08), Color(0.07, 0.07, 0.075), Color(0.06, 0.06, 0.065))
+	var asphalt := tiled_floor(4.0, Color(0.17, 0.17, 0.175), Color(0.16, 0.16, 0.165), Color(0.12, 0.12, 0.12))
 	var cx := f.position.x + f.size.x * 0.5
 	var cz := f.position.y + f.size.y * 0.5
 	# ground in strips around the building (avoids z-fighting with store floor)
 	box(store, Vector3(f.size.x, 0.1, f.end.y - D * 0.5), Vector3(cx, -0.07, (D * 0.5 + f.end.y) * 0.5), asphalt)
-	box(store, Vector3(f.size.x, 0.1, -D * 0.5 - f.position.y), Vector3(cx, -0.07, (f.position.y - D * 0.5) * 0.5), asphalt)
-	box(store, Vector3(f.size.x, 0.1, D), Vector3(cx, -0.08, 0), asphalt)
+	box(store, Vector3(f.size.x, 0.1, ZB - f.position.y), Vector3(cx, -0.07, (f.position.y + ZB) * 0.5), asphalt)
+	box(store, Vector3(f.size.x, 0.1, D * 0.5 - ZB), Vector3(cx, -0.08, (D * 0.5 + ZB) * 0.5), asphalt)
 	add_collider(store, Vector3(f.size.x + 4, 0.2, f.size.y + 4), Vector3(cx, -0.1, cz))
 	# sidewalk
 	box(store, Vector3(W + 2, 0.12, 2.5), Vector3(0, -0.02, D * 0.5 + 1.35), mat(Color(0.32, 0.31, 0.3), 0.0, 0.9))
@@ -530,7 +543,7 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		var sl := OmniLight3D.new()
 		sl.light_color = Color(1.0, 0.6, 0.28)
 		sl.omni_range = 13.0
-		sl.light_energy = 1.6
+		sl.light_energy = 4.0
 		sl.omni_attenuation = 1.3
 		sl.position = lp + Vector3(0, 5.6, 0)
 		store.add_child(sl)
@@ -600,9 +613,9 @@ static func _props(store: Node3D, out: Dictionary, target: Object) -> void:
 	_clutter_box(store, Vector3(-11.3, 0, 13.6), Vector3(0.8, 0.5, 0.6), 0.2)
 	_clutter_box(store, Vector3(-11.4, 0.5, 13.5), Vector3(0.6, 0.4, 0.5), -0.3)
 	_clutter_box(store, Vector3(-10.9, 0, 12.6), Vector3(0.55, 0.38, 0.5), 0.6)
-	_clutter_box(store, Vector3(10.2, 0, -13.9), Vector3(0.8, 0.5, 0.6), 0.1)
-	_clutter_box(store, Vector3(11.2, 0, -13.6), Vector3(0.6, 0.6, 0.6), -0.2)
-	_clutter_box(store, Vector3(-6.0, 0, -14.1), Vector3(0.7, 0.45, 0.55), 0.15)
+	_clutter_box(store, Vector3(10.2, 0, ZB + 1.0), Vector3(0.8, 0.5, 0.6), 0.1)
+	_clutter_box(store, Vector3(11.2, 0, ZB + 1.4), Vector3(0.6, 0.6, 0.6), -0.2)
+	_clutter_box(store, Vector3(-6.0, 0, ZB + 0.8), Vector3(0.7, 0.45, 0.55), 0.15)
 	# Wet floor sign
 	var ws := Node3D.new()
 	ws.position = Vector3(11.3, 0, 12.5)
