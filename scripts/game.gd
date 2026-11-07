@@ -941,7 +941,11 @@ func _flicker() -> void:
 		var on := randf() > 0.12 if fr % 300 < 70 else true
 		var run := float(l.get_meta("run", l.get_meta("base")))
 		l.light_energy = run * (1.0 if on else 0.1)
+		if not l.has_meta("fixture"):
+			continue
 		var f: Node3D = l.get_meta("fixture")
+		if f == null:
+			continue
 		for t in f.get_children():
 			if t is MeshInstance3D and t.get_index() > 0:
 				t.visible = on
