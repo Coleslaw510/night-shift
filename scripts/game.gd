@@ -2,7 +2,7 @@ extends Node3D
 ## Main game controller: builds the store, shelves, HUD, player, registers; spawns customers;
 ## runs the shift clock (10 PM -> 6 AM), doors, trash, stock hints and the end-of-shift summary.
 
-const VERSION := "1.2.1"
+const VERSION := "1.2.2"
 const SHIFT_START_MIN := 22 * 60          # 10:00 PM
 const SHIFT_LENGTH_MIN := 8 * 60          # until 6:00 AM
 const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
@@ -648,60 +648,53 @@ func end_shift() -> void:
 	hud.show_summary(stats)
 
 func apply_graphics() -> void:
+	# Brightness is shared. Presets add shadows and accent lights, not a darker store.
 	var p := Settings.gfx_preset
+	var bright := clampf(Settings.gfx_brightness, 0.55, 1.6)
 	var max_tier := 2
-	var range_k := 1.0
-	var glow := 0.7
-	var fog := 0.02
-	var far := 250.0
+	var glow := 0.45
 	var msaa := Viewport.MSAA_2X
 	var shadows := false
 	_shelf_cull = 0.0
 	match p:
 		"low":
 			max_tier = 0
-			range_k = 0.7
-			glow = 0.0
-			fog = 0.032
-			far = 90.0
+			glow = 0.22
 			msaa = Viewport.MSAA_DISABLED
-			_shelf_cull = 14.0
 		"medium":
 			max_tier = 1
-			range_k = 0.85
-			glow = 0.4
-			fog = 0.024
-			far = 140.0
+			glow = 0.35
 			msaa = Viewport.MSAA_DISABLED
-			_shelf_cull = 24.0
 		"ultra":
 			max_tier = 2
-			range_k = 1.05
-			glow = 0.85
-			fog = 0.016
-			far = 400.0
+			glow = 0.6
 			msaa = Viewport.MSAA_4X
 			shadows = true
 		_:
 			max_tier = 2
-			range_k = 1.0
-			glow = 0.7
-			fog = 0.02
-			far = 250.0
+			glow = 0.45
 			msaa = Viewport.MSAA_2X
 	var vp := get_viewport()
 	vp.msaa_3d = msaa
 	vp.scaling_3d_scale = clampf(Settings.gfx_scale, 0.5, 1.0)
 	Engine.max_fps = Settings.fps_cap
 	if player and player.cam:
-		player.cam.far = far
+		player.cam.far = 220.0
 	for c in get_children():
 		if c is WorldEnvironment:
 			var env: Environment = c.environment
-			env.glow_enabled = glow > 0.01
+			env.ambient_light_energy = 0.72 * bright
+			env.tonemap_exposure = 1.12 * bright
+			env.glow_enabled = true
 			env.glow_intensity = glow
 			env.fog_enabled = true
-			env.fog_density = fog
+			env.fog_density = 0.01
+			env.fog_light_color = Color(0.14, 0.13, 0.11)
+		elif c is DirectionalLight3D or c.is_in_group("fill_light"):
+			var fill := c as DirectionalLight3D
+			if fill:
+				fill.light_energy = 0.62 * bright
+				fill.shadow_enabled = shadows
 	for entry in store.lights:
 		var light := entry as Light3D
 		if light == null:
@@ -712,10 +705,10 @@ func apply_graphics() -> void:
 		var base_e := float(light.get_meta("base", 1.0))
 		var base_r := float(light.get_meta("base_range", 8.0))
 		if light is OmniLight3D:
-			light.omni_range = base_r * range_k
+			light.omni_range = base_r
 		elif light is SpotLight3D:
-			light.spot_range = base_r * range_k
-		light.shadow_enabled = shadows and on and light is SpotLight3D and tier == 0
+			light.spot_range = base_r
+			light.shadow_enabled = shadows and on and tier == 0
 		light.light_energy = base_e if on else 0.0
 		light.set_meta("run", light.light_energy)
 	if shelves and player:

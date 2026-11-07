@@ -6,11 +6,13 @@ static var mouse_sens := 1.0
 static var volume := 0.8
 static var gfx_preset := ""
 static var gfx_scale := 1.0
+static var gfx_brightness := 1.0
 static var fps_cap := 0
 static var show_fps := false
 static var host: Node = null
 static var _loaded := false
 static var _scale_slider: HSlider
+static var _bright_slider: HSlider
 static var _preset_buttons: Array = []
 static var _cap_buttons: Array = []
 
@@ -31,6 +33,7 @@ static func load_settings() -> void:
 		volume = cf.get_value("audio", "volume", 0.8)
 		gfx_preset = str(cf.get_value("graphics", "preset", gfx_preset))
 		gfx_scale = float(cf.get_value("graphics", "scale", gfx_scale))
+		gfx_brightness = float(cf.get_value("graphics", "brightness", 1.0))
 		fps_cap = int(cf.get_value("graphics", "fps_cap", fps_cap))
 		show_fps = bool(cf.get_value("graphics", "show_fps", false))
 	apply()
@@ -42,6 +45,7 @@ static func save_settings() -> void:
 	cf.set_value("audio", "volume", volume)
 	cf.set_value("graphics", "preset", gfx_preset)
 	cf.set_value("graphics", "scale", gfx_scale)
+	cf.set_value("graphics", "brightness", gfx_brightness)
 	cf.set_value("graphics", "fps_cap", fps_cap)
 	cf.set_value("graphics", "show_fps", show_fps)
 	cf.save(PATH)
@@ -120,6 +124,21 @@ static func add_graphics(box: Container) -> void:
 		apply()
 		save_settings())
 	box.add_child(_scale_slider)
+	var bright_l := Label.new()
+	bright_l.text = "Brightness"
+	bright_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(bright_l)
+	_bright_slider = HSlider.new()
+	_bright_slider.min_value = 0.6
+	_bright_slider.max_value = 1.5
+	_bright_slider.step = 0.05
+	_bright_slider.value = gfx_brightness
+	_bright_slider.custom_minimum_size = Vector2(320, 24)
+	_bright_slider.value_changed.connect(func(v: float):
+		gfx_brightness = v
+		apply()
+		save_settings())
+	box.add_child(_bright_slider)
 	var cap_l := Label.new()
 	cap_l.text = "FPS cap"
 	cap_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

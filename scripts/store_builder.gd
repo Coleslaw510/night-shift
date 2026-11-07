@@ -157,28 +157,39 @@ static func _environment(root: Node3D) -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.008, 0.01, 0.018)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.5, 0.45, 0.38)
-	env.ambient_light_energy = 0.24
+	env.ambient_light_color = Color(0.78, 0.74, 0.66)
+	env.ambient_light_energy = 0.72
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 1.12
 	env.glow_enabled = true
 	env.glow_intensity = 0.7
 	env.glow_strength = 1.1
 	env.glow_bloom = 0.05
 	env.glow_hdr_threshold = 0.9
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.06, 0.055, 0.05)
-	env.fog_density = 0.02
+	env.fog_light_color = Color(0.14, 0.13, 0.11)
+	env.fog_density = 0.01
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.05
 	we.environment = env
 	root.add_child(we)
+	# One cheap fill light for the whole building. Presets must not turn this off;
+	# extra omnis only add detail. Angled so shelf faces catch light, not just the floor.
+	var fill := DirectionalLight3D.new()
+	fill.name = "FillLight"
+	fill.light_color = Color(1.0, 0.93, 0.8)
+	fill.light_energy = 0.62
+	fill.shadow_enabled = false
+	fill.rotation_degrees = Vector3(-58, 28, 0)
+	fill.set_meta("role", "fill")
+	fill.add_to_group("fill_light")
+	root.add_child(fill)
 
 static func _floor_and_ceiling(store: Node3D) -> void:
 	var hw := W * 0.5
 	var hd := D * 0.5
-	var fm := tiled_floor(0.6, Color(0.31, 0.3, 0.28), Color(0.28, 0.27, 0.26), Color(0.18, 0.18, 0.17))
+	var fm := tiled_floor(0.6, Color(0.5, 0.48, 0.44), Color(0.44, 0.42, 0.38), Color(0.32, 0.3, 0.27))
 	# Floor split in 4x5 m tiles so each mesh gets few lights (Compatibility renderer limit).
 	var depth := hd - ZB
 	var zc := (hd + ZB) * 0.5
@@ -194,10 +205,12 @@ static func _floor_and_ceiling(store: Node3D) -> void:
 	var room_d := ZB - ROOM_Z
 	box(store, Vector3(W, 0.1, room_d), Vector3(0, -0.05, (ZB + ROOM_Z) * 0.5), cm)
 	# Ceiling: dark panels + grid
-	var ceil_m := mat(Color(0.13, 0.13, 0.13), 0.0, 0.95)
-	var grid_m := mat(Color(0.06, 0.06, 0.06))
+	# Sales-floor ceiling reads as a bank of fluorescents even when omnis are off.
+	var ceil_m := mat(Color(0.62, 0.58, 0.5), 0.55, 0.7)
+	var room_ceil := mat(Color(0.2, 0.19, 0.17), 0.12, 0.9)
+	var grid_m := mat(Color(0.1, 0.1, 0.1))
 	box(store, Vector3(W, 0.12, depth), Vector3(0, H + 0.06, zc), ceil_m)
-	box(store, Vector3(W, 0.12, ZB - ROOM_Z), Vector3(0, H + 0.06, (ZB + ROOM_Z) * 0.5), ceil_m)
+	box(store, Vector3(W, 0.12, ZB - ROOM_Z), Vector3(0, H + 0.06, (ZB + ROOM_Z) * 0.5), room_ceil)
 	var grid_xf: Array = []
 	var gx := -hw + 1.2
 	while gx < hw:
@@ -308,12 +321,13 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 				box(f, Vector3(0.12, 0.04, 2.36), Vector3(tx, -0.06, 0), tube)
 			var l := OmniLight3D.new()
 			l.light_color = Color(1.0, 0.9, 0.74)
-			l.light_energy = 1.0
+			l.light_energy = 0.28
 			l.omni_range = 10.5
 			l.omni_attenuation = 1.0
 			l.position = Vector3(fx, H - 0.45, fz)
 			l.set_meta("fixture", f)
-			var tier := 0 if absf(fx) < 1.0 else (1 if absf(fx) < 10.0 else 2)
+			# Accent only. The floor is lit by ambient, the fill light, and the ceiling.
+			var tier := 2
 			_add_light(store, out, l, tier, l.omni_range)
 
 static func _freezer(store: Node3D, out: Dictionary) -> void:
@@ -609,7 +623,6 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 	_fuel_station(store, out)
 	_corral(store, out)
 	# street lamps — none in the fuel bay, so that corner stays dark except the pumps
-	var lamp_i := 0
 	for lp in [Vector3(-16, 0, 30), Vector3(6, 0, 36), Vector3(-20, 0, -40), Vector3(6, 0, -42), Vector3(-30, 0, 10)]:
 		box(store, Vector3(0.18, 6.0, 0.18), lp + Vector3(0, 3, 0), mat(Color(0.18, 0.18, 0.18)))
 		box(store, Vector3(1.0, 0.18, 0.45), lp + Vector3(0, 6.0, 0), mat(Color(1.0, 0.65, 0.3), 4.0))
@@ -620,8 +633,7 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		sl.light_energy = 4.0
 		sl.omni_attenuation = 1.3
 		sl.position = lp + Vector3(0, 5.6, 0)
-		_add_light(store, out, sl, 1 if lamp_i < 2 else 2, sl.omni_range)
-		lamp_i += 1
+		_add_light(store, out, sl, 0, sl.omni_range)
 	# chain-link fence around the lot
 	var post_m := mat(Color(0.35, 0.36, 0.37), 0.0, 0.4, 0.7)
 	var mesh_m := mat(Color(0.5, 0.52, 0.55, 0.28), 0.0, 0.5, 0.3)

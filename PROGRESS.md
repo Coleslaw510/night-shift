@@ -1,5 +1,8 @@
 # Progress
 
+## v1.2.2: **100%**
+The sales floor stays readable on Low. Brightness comes from ambient, one fill light, and a glowing ceiling, not from a pile of omni lights. A Brightness slider is saved with the other graphics settings.
+
 ## v1.2.1: **100%**
 Stockroom curtain is open and covered by a reach test. Draw calls dropped from about 830 to about 520, and iOS defaults to the Low graphics preset (10 lights, no MSAA, 0.7 render scale, 60 FPS cap). Desktop defaults to High.
 

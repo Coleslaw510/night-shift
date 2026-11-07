@@ -21,7 +21,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
   not notarized). Artifacts: `NightShift-Windows`, `NightShift-Mac`.
 
 ## Build / run
-- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.2.1-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 5.
+- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.2.2-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 6.
 - Open the folder in Godot 4.4.1 and press F5. Main scene: `scenes/menu.tscn`.
 - Smoke test: `godot --headless --import && godot --headless --script res://tests/smoke_test.gd`
   (fails CI on any `SCRIPT ERROR` line or non-zero exit).
@@ -82,6 +82,12 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Employee entrance is a real opening with a strip curtain on the back-left wall. The freezer no longer seals it. `tests/reach_test.gd` ray-checks the stockroom, back office, gun locker, back door, dumpster, front door, and fuel bay.
 - [x] Performance: shelf price tags, the ceiling grid, fence posts, and shelf frames are batched (draw calls about 830 → about 520 on the desktop profile). Graphics presets live in the pause menu: Low / Medium / High / Ultra, a render-scale slider, an FPS cap (30 / 60 / unlimited), and an FPS counter. Low keeps about 10 lights, no MSAA, no bloom, a slightly thicker fog, and hides far shelf rows. iOS defaults to Low with a 60 FPS cap. Desktop defaults to High, with Ultra available. The choice is saved in `user://settings.cfg`.
 - Version is 1.2.1. iOS build number is 5.
+
+### v1.2.2
+- [x] Low was dark because it kept about 10 omni lights (the center aisle, freezer, stockroom spots, and pumps) and turned the rest off, with ambient at 0.24 and no bloom. Side aisles had almost no light.
+- [x] Every preset now shares the same base: warmer ambient, one directional fill, and an emissive sales-floor ceiling. Accent omnis, MSAA, and shadows are the only things higher presets add. A saved Brightness slider scales that base.
+- [x] `tests/luminance_test.gd` renders the sales floor, stockroom, and lot at Low and High and checks average luminance.
+- Version is 1.2.2. iOS build number is 6.
 
 ### v1.1.1 (iPhone)
 - [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
