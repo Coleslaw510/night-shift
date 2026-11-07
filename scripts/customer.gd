@@ -249,6 +249,7 @@ func _nearest_aisle(x: float) -> float:
 
 var _stop_row := -1
 var _stop_side := 0
+var hit_processed := false
 
 func _next_stop() -> void:
 	var target: Vector3
@@ -682,15 +683,24 @@ func _animate(delta: float) -> void:
 
 
 func hit() -> void:
-	if state == S.LEAVING:
+	if hit_processed:
 		return
-	if my_register:
+	hit_processed = true
+	# Stop all AI/animation immediately so the original customer cannot freeze in place.
+	set_process(false)
+	set_physics_process(false)
+	for child in get_children():
+		if child is StaticBody3D:
+			child.set_deferred("collision_layer", 0)
+			child.set_deferred("collision_mask", 0)
+	if my_register and is_instance_valid(my_register):
 		my_register.leave(self)
 	_drop_my_cart()
 	finished.emit(self, false)
+	var parent := get_parent()
 	for part in [body, leg_l, leg_r, arm_l, arm_r]:
-		if is_instance_valid(part):
-			part.reparent(get_parent())
+		if is_instance_valid(part) and parent:
+			part.reparent(parent, true)
 			var dir := Vector3(randf_range(-2.0, 2.0), randf_range(1.0, 3.0), randf_range(-2.0, 2.0))
 			var tw := create_tween()
 			tw.set_parallel(true)
