@@ -1,3 +1,6 @@
-# Baseline progress
+# Progress
 
-**100%** — baseline 0.1.0 complete and CI green (Windows + Mac artifacts). Next milestone: multiplayer + proximity voice (see HANDOFF.md roadmap).
+## v1.1: **60%**
+First pass of all 1.1 features is in and smoke-tested (look, stocking, trash/dumpster, doors, windows, change-making, gun locker). Next: visual iteration vs concept art, HANDOFF/README, final CI.
+
+## v0.1 baseline: 100%

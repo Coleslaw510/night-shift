@@ -1,21 +1,32 @@
 extends CharacterBody3D
-## First-person controller: WASD, mouse look, Shift sprint, Space jump, E/click interact.
-## Interactables: any collider (or its parent) with `interact(player)` and `get_prompt()`.
+## First-person controller: WASD, mouse look, Shift sprint, Space jump, E/click interact
+## (hold for stocking), Q to put down a carried stock box. Has a scanner viewmodel and can
+## carry one thing: {"kind": "stock", "product": idx, "count": n} or {"kind": "trash"}.
 
 signal prompt_changed(text: String)
+signal carry_changed(carrying: Dictionary)
 
 const WALK := 3.2
 const SPRINT := 5.6
 const JUMP := 4.2
-const REACH := 3.0
-var mouse_sens := 0.0025
+const REACH := 2.6
+const BOX_UNITS := 12
+var base_sens := 0.0025
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var cam: Camera3D
 var ray: RayCast3D
 var _last_prompt := ""
 var controls_enabled := true
+var carrying: Dictionary = {}
+var viewmodel: Node3D
+var scanner: Node3D
+var beam: MeshInstance3D
+var carry_node: Node3D
+var _beam_t := 0.0
+var _bob := 0.0
 
 func _ready() -> void:
+	Settings.load_settings()
 	var cs := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = 0.3
@@ -25,7 +36,8 @@ func _ready() -> void:
 	add_child(cs)
 	cam = Camera3D.new()
 	cam.position.y = 1.62
-	cam.fov = 75
+	cam.fov = 72
+	cam.near = 0.03
 	add_child(cam)
 	cam.current = true
 	ray = RayCast3D.new()
@@ -33,13 +45,81 @@ func _ready() -> void:
 	ray.collide_with_areas = true
 	ray.add_exception(self)
 	cam.add_child(ray)
+	_build_viewmodel()
+
+func _build_viewmodel() -> void:
+	viewmodel = Node3D.new()
+	viewmodel.position = Vector3(0.24, -0.27, -0.42)
+	cam.add_child(viewmodel)
+	var skin := StoreBuilder.mat(Color(0.86, 0.66, 0.5), 0.0, 0.8)
+	var sleeve := StoreBuilder.mat(Color(0.16, 0.28, 0.22), 0.0, 0.9)     # green work shirt
+	var plastic := StoreBuilder.mat(Color(0.13, 0.13, 0.14), 0.0, 0.5)
+	var arm := Node3D.new()
+	arm.rotation = Vector3(0.25, 0.15, 0)
+	viewmodel.add_child(arm)
+	StoreBuilder.box(arm, Vector3(0.1, 0.1, 0.42), Vector3(0.04, -0.07, 0.24), sleeve)
+	StoreBuilder.box(arm, Vector3(0.085, 0.085, 0.2), Vector3(0.02, -0.05, 0.02), skin)    # forearm
+	StoreBuilder.box(arm, Vector3(0.1, 0.1, 0.11), Vector3(0.0, -0.03, -0.1), skin)        # fist
+	for k in 3:
+		StoreBuilder.box(arm, Vector3(0.025, 0.03, 0.025), Vector3(-0.055, -0.0 - k * 0.032, -0.12), skin)  # fingers
+	scanner = Node3D.new()
+	scanner.position = Vector3(0.0, 0.0, -0.11)
+	arm.add_child(scanner)
+	var handle := StoreBuilder.box(scanner, Vector3(0.05, 0.17, 0.06), Vector3(0, 0.0, 0), plastic)
+	handle.rotation.x = 0.35
+	StoreBuilder.box(scanner, Vector3(0.075, 0.08, 0.2), Vector3(0, 0.09, -0.07), plastic)
+	StoreBuilder.box(scanner, Vector3(0.09, 0.095, 0.05), Vector3(0, 0.1, -0.17), plastic)
+	StoreBuilder.box(scanner, Vector3(0.05, 0.03, 0.005), Vector3(0, 0.115, 0.032), StoreBuilder.mat(Color(0.5, 0.95, 0.2), 2.0))  # status screen
+	StoreBuilder.box(scanner, Vector3(0.07, 0.05, 0.005), Vector3(0, 0.1, -0.196), StoreBuilder.mat(Color(1, 0.1, 0.05), 2.5))
+	StoreBuilder.box(scanner, Vector3(0.03, 0.02, 0.02), Vector3(0, 0.05, -0.02), StoreBuilder.mat(Color(0.9, 0.75, 0.1)))  # trigger
+	beam = StoreBuilder.box(scanner, Vector3(0.06, 0.004, 1.2), Vector3(0, 0.1, -0.8), StoreBuilder.unshaded(Color(1, 0.1, 0.05, 0.6)))
+	beam.visible = false
+	carry_node = Node3D.new()
+	carry_node.position = Vector3(-0.2, -0.05, -0.15)
+	viewmodel.add_child(carry_node)
+
+func set_carry(d: Dictionary) -> void:
+	carrying = d
+	for c in carry_node.get_children():
+		c.queue_free()
+	match d.get("kind", ""):
+		"stock":
+			var p: Dictionary = Products.CATALOG[d.product]
+			var b := StoreBuilder.box(carry_node, Vector3(0.5, 0.34, 0.36), Vector3(0, -0.08, -0.2), StoreBuilder.mat(Color(0.56, 0.42, 0.26), 0.0, 0.95))
+			StoreBuilder.box(b, Vector3(0.3, 0.12, 0.01), Vector3(0, 0.02, 0.181), StoreBuilder.mat(p.color))
+			StoreBuilder.box(b, Vector3(0.51, 0.04, 0.08), Vector3(0, 0.17, 0), StoreBuilder.mat(Color(0.7, 0.6, 0.42)))
+		"trash":
+			var bag := StoreBuilder.box(carry_node, Vector3(0.36, 0.42, 0.32), Vector3(0.02, -0.18, -0.15), StoreBuilder.mat(Color(0.04, 0.04, 0.05), 0.0, 0.25))
+			bag.rotation = Vector3(0.1, 0.4, 0.15)
+			StoreBuilder.box(carry_node, Vector3(0.08, 0.1, 0.08), Vector3(0.02, 0.06, -0.15), StoreBuilder.mat(Color(0.04, 0.04, 0.05), 0.0, 0.25))
+	carry_changed.emit(carrying)
+
+func use_stock_unit() -> void:
+	if carrying.get("kind", "") != "stock":
+		return
+	carrying.count -= 1
+	_play("place")
+	if carrying.count <= 0:
+		set_carry({})
+	else:
+		carry_changed.emit(carrying)
+
+func scan_flash() -> void:
+	_beam_t = 0.12
+	beam.visible = true
+
+func _play(sfx: String) -> void:
+	var g := get_parent()
+	if g and g.has_method("play_sfx"):
+		g.play_sfx(sfx)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not controls_enabled:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * mouse_sens)
-		cam.rotate_x(-event.relative.y * mouse_sens)
+		var s := base_sens * Settings.mouse_sens
+		rotate_y(-event.relative.x * s)
+		cam.rotate_x(-event.relative.y * s)
 		cam.rotation.x = clamp(cam.rotation.x, -1.45, 1.45)
 	elif event.is_action_pressed("interact"):
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -48,6 +128,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		var t := _target()
 		if t:
 			t.interact(self)
+	elif event.is_action_pressed("drop"):
+		if carrying.get("kind", "") == "stock":
+			set_carry({})
+			var g := get_parent()
+			if g and g.has_method("toast"):
+				g.toast("Put the box back in the stockroom.")
 
 func _target() -> Node:
 	if not ray.is_colliding():
@@ -68,18 +154,28 @@ func _physics_process(delta: float) -> void:
 		dir = (transform.basis * Vector3(inp.x, 0, inp.y)).normalized()
 		if Input.is_action_just_pressed("jump") and is_on_floor():
 			velocity.y = JUMP
+		if Input.is_action_pressed("interact") and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			var ht := _target()
+			if ht and ht.has_method("hold_interact"):
+				ht.hold_interact(self, delta)
 	var spd := SPRINT if Input.is_action_pressed("sprint") else WALK
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()
-	# Head bob, subtle.
 	var hs := Vector2(velocity.x, velocity.z).length()
-	cam.position.y = 1.62 + (sin(Time.get_ticks_msec() * 0.012 * (spd / WALK)) * 0.03 if hs > 0.5 and is_on_floor() else 0.0)
-	# Prompt
+	if hs > 0.5 and is_on_floor():
+		_bob += delta * hs * 2.6
+	cam.position.y = 1.62 + sin(_bob * 2.0) * 0.025
+	viewmodel.position = Vector3(0.24 + cos(_bob) * 0.008, -0.27 + absf(sin(_bob)) * 0.01, -0.42)
+	if _beam_t > 0.0:
+		_beam_t -= delta
+		if _beam_t <= 0.0:
+			beam.visible = false
+	scanner.visible = carrying.is_empty()
 	var p := ""
 	var t := _target()
 	if t and t.has_method("get_prompt"):
-		p = t.get_prompt()
+		p = t.get_prompt(self)
 	if p != _last_prompt:
 		_last_prompt = p
 		prompt_changed.emit(p)

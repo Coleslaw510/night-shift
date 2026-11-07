@@ -16,5 +16,18 @@ const CATALOG := [
 	{"name": "Ice Cream", "price": 5.99, "color": Color(0.95, 0.6, 0.75), "size": Vector3(0.16, 0.14, 0.16)},
 ]
 
+const SHELF_ITEMS := [0, 1, 2, 3, 4, 5, 6, 7, 10]   # stocked on aisle shelves
+const FROZEN_ITEMS := [8, 9, 11, 1]                 # sold from the freezer (never runs out)
+
 static func random() -> Dictionary:
 	return CATALOG[randi() % CATALOG.size()]
+
+static func index_of(p: Dictionary) -> int:
+	return CATALOG.find(p)
+
+static func cents(p: Dictionary) -> int:
+	return int(round(float(p.price) * 100.0))
+
+static func label_color(p: Dictionary) -> Color:
+	var c: Color = p.color
+	return Color(0.08, 0.08, 0.1) if c.get_luminance() > 0.6 else Color(0.97, 0.95, 0.85)

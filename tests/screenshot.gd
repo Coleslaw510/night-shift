@@ -4,7 +4,9 @@ extends SceneTree
 var frames := 0
 var game: Node
 var outdir := "user://"
-var shots := []
+# frame -> [pose, filename]
+var plan := {150: ["interior", "interior"], 170: ["outside", "outside"], 190: ["front", "front"], 215: ["change", "register_change"]}
+var pending := ""
 
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -15,11 +17,28 @@ func _initialize() -> void:
 
 func _process(_d: float) -> bool:
 	frames += 1
-	if game.has_method("debug_screenshot_setup"):
-		game.debug_screenshot_setup(frames)
-	if frames in [139, 200]:
+	if frames == 2:
+		Engine.time_scale = 10.0
+		for i in 6:
+			game.spawn_customer()
+	if frames == 130:
+		Engine.time_scale = 1.0
+		game.customers_root.process_mode = Node.PROCESS_MODE_DISABLED
+		game.hud.toast("")
+	if pending != "" :
 		var img := root.get_viewport().get_texture().get_image()
-		var p := "%s/shot_%d.png" % [outdir, frames]
+		var p := "%s/%s.png" % [outdir, pending]
 		img.save_png(p)
 		print("SHOT ", p)
-	return frames >= 201
+		pending = ""
+	for f in plan:
+		if frames == f - 6:
+			var pose: String = plan[f][0]
+			if pose == "change":
+				game.debug_pose("interior")
+				game.hud.open_change(1377, 2000)
+			else:
+				game.debug_pose(pose)
+		if frames == f:
+			pending = plan[f][1]
+	return frames >= 220

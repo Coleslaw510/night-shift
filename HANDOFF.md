@@ -56,6 +56,12 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ## Status
 <!-- STATUS-START -->
+### v1.1 (in progress)
+- [x] Look pass 1 (concept-style lighting, HUD, scanner viewmodel, beige registers, customers)
+- [x] Stocking, trash->dumpster, doors, glass windows, change-making, gun locker placeholder (first pass, smoke-tested)
+- [ ] Look pass 2 (compare to docs/concept/store.jpg), docs, final CI
+
+### v0.1 baseline
 - [x] (a) Repo + project skeleton + HANDOFF + CI
 - [x] (b) Store layout + lighting + HUD
 - [x] (c) Player movement

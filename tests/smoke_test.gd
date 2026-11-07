@@ -24,9 +24,11 @@ func _process(_delta: float) -> bool:
 	if game and game.has_method("debug_tick"):
 		game.debug_tick(frames)
 	if frames >= 1800:
-		var ok := true
+		var ok := false
 		if game and game.has_method("debug_report"):
 			ok = game.debug_report()
+		else:
+			push_error("SMOKE: game script missing debug_report (script failed to load?)")
 		print("SMOKE: done after %d frames, ok=%s" % [frames, ok])
 		Engine.time_scale = 1.0
 		quit(0 if ok else 1)

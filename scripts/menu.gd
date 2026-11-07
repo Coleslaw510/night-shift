@@ -2,6 +2,7 @@ extends Control
 ## Main menu, built in code: Start Shift / Quit.
 
 func _ready() -> void:
+	Settings.load_settings()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var bg := ColorRect.new()
 	bg.color = Color(0.03, 0.04, 0.06)
@@ -31,7 +32,7 @@ func _ready() -> void:
 		b.pressed.connect(spec[1])
 		box.add_child(b)
 	var help := Label.new()
-	help.text = "WASD move  |  Mouse look  |  Shift sprint  |  E / Click scan  |  Esc pause"
+	help.text = "WASD move | Mouse look | Shift sprint | E / Click use (hold to stock) | Q put box back | Esc pause\n\nv1.1"
 	help.add_theme_color_override("font_color", Color(0.45, 0.5, 0.55))
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(help)
