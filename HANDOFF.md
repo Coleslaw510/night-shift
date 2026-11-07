@@ -58,7 +58,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 <!-- STATUS-START -->
 - [x] (a) Repo + project skeleton + HANDOFF + CI
 - [x] (b) Store layout + lighting + HUD
-- [ ] (c) Player movement
+- [x] (c) Player movement
 - [ ] (d) Customers
 - [ ] (e) Register / checkout + earnings
 - [ ] (f) Shift clock + summary + menu

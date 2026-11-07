@@ -1,3 +1,3 @@
 # Baseline progress
 
-**30%** — (a) skeleton/CI and (b) store layout, lighting, HUD done. Next: (c) player movement.
+**45%** — (a) skeleton/CI, (b) store + HUD, (c) first-person player + pause done. Next: (d) customers.
