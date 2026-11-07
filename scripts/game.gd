@@ -30,6 +30,8 @@ var trash := 0.35
 var back_door_open := false
 var front_open := 0.0
 var _hint_t := 0.0
+var _cull_t := 0.0
+var _shelf_cull := 0.0
 var _change_reg: Node = null
 var _sfx: Array = []
 var touch_mode := false
@@ -55,8 +57,6 @@ func _ready() -> void:
 	if touch_mode:
 		_setup_mobile()
 	store = StoreBuilder.build(self, self)
-	if touch_mode:
-		_mobile_env()
 	shelves = ShelfSystem.new()
 	add_child(shelves)
 	shelves.build()
@@ -122,6 +122,8 @@ func _ready() -> void:
 	SaveGame.boot_mode = ""
 	_update_clock()
 	_update_hints()
+	Settings.bind(self)
+	apply_graphics()
 
 ## Touch mode: phones/tablets, or desktop testing with `godot -- --touch`.
 static func is_touch() -> bool:
@@ -130,24 +132,13 @@ static func is_touch() -> bool:
 func capture_mouse(on: bool) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED if (on and not touch_mode) else Input.MOUSE_MODE_VISIBLE
 
-## Mobile preset: no tap-to-interact via emulated mouse clicks, no MSAA, lighter glow/fog,
-## slightly lower 3D resolution, 60 fps cap. The look is kept (same lights and materials).
+## Phones don't use the mouse-click binding, so a tap doesn't also press USE.
+## Resolution, lights, and the FPS cap come from the graphics preset.
 func _setup_mobile() -> void:
 	InputMap.action_erase_events("interact")
 	var e := InputEventKey.new()
 	e.physical_keycode = KEY_E
 	InputMap.action_add_event("interact", e)
-	var vp := get_viewport()
-	vp.msaa_3d = Viewport.MSAA_DISABLED
-	vp.scaling_3d_scale = 0.8
-	Engine.max_fps = 60
-
-func _mobile_env() -> void:
-	for c in get_children():
-		if c is WorldEnvironment:
-			var env: Environment = c.environment
-			env.glow_intensity = 0.55
-			env.adjustment_enabled = false
 
 func play_sfx(name: String) -> void:
 	for a in _sfx:
@@ -172,6 +163,10 @@ func _process(delta: float) -> void:
 	_run_fuel(delta)
 	_update_can()
 	_recover_registers()
+	_cull_t -= delta
+	if _cull_t <= 0.0 and player:
+		_cull_t = 0.35
+		shelves.update_cull(player.global_position.x, _shelf_cull)
 	_hint_t -= delta
 	if _hint_t <= 0.0:
 		_hint_t = 0.5
@@ -650,6 +645,80 @@ func end_shift() -> void:
 	hud.set_prompt("")
 	hud.show_summary(stats)
 
+func apply_graphics() -> void:
+	var p := Settings.gfx_preset
+	var max_tier := 2
+	var range_k := 1.0
+	var glow := 0.7
+	var fog := 0.02
+	var far := 250.0
+	var msaa := Viewport.MSAA_2X
+	var shadows := false
+	_shelf_cull = 0.0
+	match p:
+		"low":
+			max_tier = 0
+			range_k = 0.7
+			glow = 0.0
+			fog = 0.032
+			far = 90.0
+			msaa = Viewport.MSAA_DISABLED
+			_shelf_cull = 14.0
+		"medium":
+			max_tier = 1
+			range_k = 0.85
+			glow = 0.4
+			fog = 0.024
+			far = 140.0
+			msaa = Viewport.MSAA_DISABLED
+			_shelf_cull = 24.0
+		"ultra":
+			max_tier = 2
+			range_k = 1.05
+			glow = 0.85
+			fog = 0.016
+			far = 400.0
+			msaa = Viewport.MSAA_4X
+			shadows = true
+		_:
+			max_tier = 2
+			range_k = 1.0
+			glow = 0.7
+			fog = 0.02
+			far = 250.0
+			msaa = Viewport.MSAA_2X
+	var vp := get_viewport()
+	vp.msaa_3d = msaa
+	vp.scaling_3d_scale = clampf(Settings.gfx_scale, 0.5, 1.0)
+	Engine.max_fps = Settings.fps_cap
+	if player and player.cam:
+		player.cam.far = far
+	for c in get_children():
+		if c is WorldEnvironment:
+			var env: Environment = c.environment
+			env.glow_enabled = glow > 0.01
+			env.glow_intensity = glow
+			env.fog_enabled = true
+			env.fog_density = fog
+	for entry in store.lights:
+		var light := entry as Light3D
+		if light == null:
+			continue
+		var tier := int(light.get_meta("tier", 2))
+		var on := tier <= max_tier
+		light.visible = on
+		var base_e := float(light.get_meta("base", 1.0))
+		var base_r := float(light.get_meta("base_range", 8.0))
+		if light is OmniLight3D:
+			light.omni_range = base_r * range_k
+		elif light is SpotLight3D:
+			light.spot_range = base_r * range_k
+		light.shadow_enabled = shadows and on and light is SpotLight3D and tier == 0
+		light.light_energy = base_e if on else 0.0
+		light.set_meta("run", light.light_energy)
+	if shelves and player:
+		shelves.update_cull(player.global_position.x, _shelf_cull)
+
 func _flicker() -> void:
 	# Two fixtures misbehave, like any good night-shift store.
 	var fr := Engine.get_process_frames()
@@ -657,8 +726,11 @@ func _flicker() -> void:
 		if i >= store.lights.size():
 			continue
 		var l: OmniLight3D = store.lights[i]
+		if not l.visible:
+			continue
 		var on := randf() > 0.12 if fr % 300 < 70 else true
-		l.light_energy = l.get_meta("base") * (1.0 if on else 0.1)
+		var run := float(l.get_meta("run", l.get_meta("base")))
+		l.light_energy = run * (1.0 if on else 0.1)
 		var f: Node3D = l.get_meta("fixture")
 		for t in f.get_children():
 			if t is MeshInstance3D and t.get_index() > 0:

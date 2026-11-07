@@ -15,6 +15,12 @@ var HIDE := Transform3D(Basis.from_scale(Vector3(0.001, 0.001, 0.001)), Vector3(
 var slots: Array = []          # Array[Dictionary]
 var mm: MultiMesh
 var mm_label: MultiMesh
+var tag_mm: MultiMesh
+var tag_rest: Array = []
+var tag_row: Array = []
+var row_nodes: Array = []
+var slot_ranges: Array = []
+var _row_on: Array = []
 var slot_len := 0.0
 
 func build() -> void:
@@ -27,20 +33,29 @@ func build() -> void:
 	var cz: float = (StoreBuilder.SHELF_Z0 + StoreBuilder.SHELF_Z1) * 0.5
 	for r in StoreBuilder.SHELF_X.size():
 		var sx: float = StoreBuilder.SHELF_X[r]
-		StoreBuilder.box(self, Vector3(DEPTH * 2, 0.1, length), Vector3(sx, 0.05, cz), metal)
-		StoreBuilder.box(self, Vector3(0.04, 1.85, length), Vector3(sx, 0.95, cz), StoreBuilder.mat(Color(0.14, 0.14, 0.15), 0.0, 0.8))
-		# uprights
+		var row := Node3D.new()
+		row.name = "ShelfRow%d" % r
+		add_child(row)
+		row_nodes.append(row)
+		_row_on.append(true)
+		var metal_xf: Array = []
+		var board_xf: Array = []
+		metal_xf.append(Transform3D(Basis.from_scale(Vector3(DEPTH * 2, 0.1, length)), Vector3(sx, 0.05, cz)))
+		StoreBuilder.box(row, Vector3(0.04, 1.85, length), Vector3(sx, 0.95, cz), StoreBuilder.mat(Color(0.14, 0.14, 0.15), 0.0, 0.8))
 		var z: float = StoreBuilder.SHELF_Z0
 		while z <= StoreBuilder.SHELF_Z1 + 0.01:
 			for side in [-1, 1]:
-				StoreBuilder.box(self, Vector3(0.05, 1.9, 0.05), Vector3(sx + side * DEPTH, 0.95, z), metal)
+				metal_xf.append(Transform3D(Basis.from_scale(Vector3(0.05, 1.9, 0.05)), Vector3(sx + side * DEPTH, 0.95, z)))
 			z += length / 4.0
 		for lv in LEVELS:
-			StoreBuilder.box(self, Vector3(DEPTH * 2, 0.03, length), Vector3(sx, lv, cz), board)
+			board_xf.append(Transform3D(Basis.from_scale(Vector3(DEPTH * 2, 0.03, length)), Vector3(sx, lv, cz)))
 			for side in [-1, 1]:
-				StoreBuilder.box(self, Vector3(0.02, 0.05, length), Vector3(sx + side * (DEPTH + 0.01), lv - 0.01, cz), metal)
+				metal_xf.append(Transform3D(Basis.from_scale(Vector3(0.02, 0.05, length)), Vector3(sx + side * (DEPTH + 0.01), lv - 0.01, cz)))
+		StoreBuilder._multibox(row, metal_xf, metal)
+		StoreBuilder._multibox(row, board_xf, board)
 		# collider = the interact surface for stocking
-		Interact.make(self, Vector3(DEPTH * 2, 1.9, length), Vector3(sx, 0.95, cz), self, {"kind": "shelf", "row": r})
+		Interact.make(row, Vector3(DEPTH * 2, 1.9, length), Vector3(sx, 0.95, cz), self, {"kind": "shelf", "row": r})
+		var slot0 := slots.size()
 		# slots
 		for side in [-1, 1]:
 			# each face gets a few product "bands" so it looks merchandised
@@ -58,10 +73,54 @@ func build() -> void:
 				# price tags along the shelf edge
 				for si in SLOTS:
 					var tz: float = StoreBuilder.SHELF_Z0 + 0.15 + (si + 0.5) * slot_len
-					StoreBuilder.box(self, Vector3(0.012, 0.04, 0.09), Vector3(sx + side * (DEPTH + 0.025), LEVELS[li] - 0.01, tz), tag)
+					tag_rest.append(Transform3D(Basis.from_scale(Vector3(0.012, 0.04, 0.09)), Vector3(sx + side * (DEPTH + 0.025), LEVELS[li] - 0.01, tz)))
+					tag_row.append(r)
+		slot_ranges.append([slot0, slots.size()])
+	_build_tags(tag)
 	_build_multimesh()
 	for i in slots.size():
 		_refresh(i)
+
+func _build_tags(mat: Material) -> void:
+	tag_mm = MultiMesh.new()
+	tag_mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	tag_mm.mesh = bm
+	tag_mm.instance_count = tag_rest.size()
+	for i in tag_rest.size():
+		tag_mm.set_instance_transform(i, tag_rest[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = tag_mm
+	mmi.material_override = mat
+	add_child(mmi)
+
+func _hide_slot(i: int) -> void:
+	var s: Dictionary = slots[i]
+	for u in s.cap:
+		var id: int = s.inst + u
+		mm.set_instance_transform(id, HIDE)
+		mm_label.set_instance_transform(id, HIDE)
+
+## max_dist <= 0 shows every row. Otherwise rows far from the player on X are hidden.
+func update_cull(player_x: float, max_dist: float) -> void:
+	for r in row_nodes.size():
+		var show := max_dist <= 0.0 or absf(StoreBuilder.SHELF_X[r] - player_x) <= max_dist
+		if _row_on[r] == show:
+			continue
+		_row_on[r] = show
+		row_nodes[r].visible = show
+		var span: Array = slot_ranges[r]
+		if show:
+			for i in range(int(span[0]), int(span[1])):
+				_refresh(i)
+		else:
+			for i in range(int(span[0]), int(span[1])):
+				_hide_slot(i)
+		for t in tag_row.size():
+			if int(tag_row[t]) != r:
+				continue
+			tag_mm.set_instance_transform(t, tag_rest[t] if show else HIDE)
 
 func _build_multimesh() -> void:
 	var total := 0

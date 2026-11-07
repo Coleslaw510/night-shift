@@ -144,7 +144,7 @@ static func build(root: Node3D, target: Object) -> Dictionary:
 	_floor_and_ceiling(store)
 	_walls(store, out)
 	_lights(store, out)
-	_freezer(store)
+	_freezer(store, out)
 	_checkouts(store, out, target)
 	_stockroom(store, out, target)
 	_outside(store, out, target)
@@ -198,14 +198,16 @@ static func _floor_and_ceiling(store: Node3D) -> void:
 	var grid_m := mat(Color(0.06, 0.06, 0.06))
 	box(store, Vector3(W, 0.12, depth), Vector3(0, H + 0.06, zc), ceil_m)
 	box(store, Vector3(W, 0.12, ZB - ROOM_Z), Vector3(0, H + 0.06, (ZB + ROOM_Z) * 0.5), ceil_m)
+	var grid_xf: Array = []
 	var gx := -hw + 1.2
 	while gx < hw:
-		box(store, Vector3(0.04, 0.03, depth), Vector3(gx, H - 0.01, zc), grid_m)
+		grid_xf.append(Transform3D(Basis.from_scale(Vector3(0.04, 0.03, depth)), Vector3(gx, H - 0.01, zc)))
 		gx += 1.2
 	var gz := ZB + 1.2
 	while gz < hd:
-		box(store, Vector3(W, 0.03, 0.04), Vector3(0, H - 0.01, gz), grid_m)
+		grid_xf.append(Transform3D(Basis.from_scale(Vector3(W, 0.03, 0.04)), Vector3(0, H - 0.01, gz)))
 		gz += 1.2
+	_multibox(store, grid_xf, grid_m)
 	# Roof (seen from outside)
 	box(store, Vector3(W + 0.6, 0.3, depth + 0.6), Vector3(0, H + 0.27, zc), mat(Color(0.12, 0.11, 0.1)))
 	box(store, Vector3(W + 0.6, 0.3, ZB - ROOM_Z + 0.6), Vector3(0, H + 0.27, (ZB + ROOM_Z) * 0.5), mat(Color(0.12, 0.11, 0.1)))
@@ -310,12 +312,11 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 			l.omni_range = 10.5
 			l.omni_attenuation = 1.0
 			l.position = Vector3(fx, H - 0.45, fz)
-			store.add_child(l)
 			l.set_meta("fixture", f)
-			l.set_meta("base", l.light_energy)
-			out.lights.append(l)
+			var tier := 0 if absf(fx) < 1.0 else (1 if absf(fx) < 10.0 else 2)
+			_add_light(store, out, l, tier, l.omni_range)
 
-static func _freezer(store: Node3D) -> void:
+static func _freezer(store: Node3D, out: Dictionary) -> void:
 	var z := ZB + 0.6
 	var body := mat(Color(0.22, 0.22, 0.24), 0.0, 0.5, 0.4)
 	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
@@ -352,7 +353,7 @@ static func _freezer(store: Node3D) -> void:
 	fl.light_energy = 1.4
 	fl.omni_range = 6.5
 	fl.position = Vector3(0, 1.3, z + 1.4)
-	store.add_child(fl)
+	_add_light(store, out, fl, 0, fl.omni_range)
 	# "FREEZER AISLE ->" sign (dark plate, light text)
 	box(store, Vector3(6.2, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
 	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
@@ -381,6 +382,30 @@ static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) ->
 	mmi.material_override = m
 	parent.add_child(mmi)
 	return mmi
+
+static func _multibox(parent: Node, xf: Array, material: Material) -> void:
+	if xf.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	mm.mesh = bm
+	mm.instance_count = xf.size()
+	for i in xf.size():
+		mm.set_instance_transform(i, xf[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = material
+	parent.add_child(mmi)
+
+static func _add_light(store: Node, out: Dictionary, light: Light3D, tier: int, base_range: float) -> void:
+	light.shadow_enabled = false
+	light.set_meta("tier", tier)
+	light.set_meta("base", light.light_energy)
+	light.set_meta("base_range", base_range)
+	store.add_child(light)
+	out.lights.append(light)
 
 static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 	var beige := mat(Color(0.66, 0.62, 0.54), 0.0, 0.7)
@@ -443,7 +468,7 @@ static func _crate(parent: Node, pos: Vector3, p: Dictionary, rot := 0.0) -> Nod
 	label(n, String(p.name).to_upper(), Vector3(0, 0.24, 0.236), 24, Products.label_color(p), 0.0, 0.0018)
 	return n
 
-static func _down_spot(store: Node3D, pos: Vector3, energy: float, rng: float) -> void:
+static func _down_spot(store: Node3D, out: Dictionary, pos: Vector3, energy: float, rng: float) -> void:
 	var sl := SpotLight3D.new()
 	sl.light_color = Color(1.0, 0.82, 0.55)
 	sl.light_energy = energy
@@ -451,7 +476,7 @@ static func _down_spot(store: Node3D, pos: Vector3, energy: float, rng: float) -
 	sl.spot_angle = 38.0
 	sl.position = pos
 	sl.rotation.x = -PI * 0.5
-	store.add_child(sl)
+	_add_light(store, out, sl, 0, rng)
 	box(store, Vector3(0.4, 0.08, 0.4), pos + Vector3(0, 0.1, 0), mat(Color(1.0, 0.85, 0.6), 2.5))
 
 static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
@@ -468,8 +493,8 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	box(store, Vector3(0.08, H, ZB - ROOM_Z), Vector3(hw + 0.2, H * 0.5, (ZB + ROOM_Z) * 0.5), ext)
 	box(store, Vector3(W + 0.5, H, 0.08), Vector3(0, H * 0.5, ROOM_Z - 0.22), ext)
 	# Two pools of light down the middle. Corners get none.
-	_down_spot(store, Vector3(0, H - 0.35, -21.5), 4.0, 11.0)
-	_down_spot(store, Vector3(1.5, H - 0.35, -27.0), 2.4, 9.0)
+	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 4.0, 11.0)
+	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 2.4, 9.0)
 	for pil in [Vector3(-12, -23, 0), Vector3(12, -23, 0), Vector3(-12, -30, 0), Vector3(12, -30, 0)]:
 		box(store, Vector3(0.45, H, 0.45), Vector3(pil.x, H * 0.5, pil.y), mat(Color(0.35, 0.34, 0.32)), true)
 	# Pallet rack just inside the employee door: one crate per shelf product
@@ -529,7 +554,7 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 		wl.light_energy = 2.2
 		wl.omni_range = 9.0
 		wl.position = wp + Vector3(0, -0.3, -0.5 if wp.z < 0 else 0.5)
-		store.add_child(wl)
+		_add_light(store, out, wl, 1, wl.omni_range)
 	# Gun locker on the stockroom's west wall (placeholder for the monster update)
 	var lk := Node3D.new()
 	lk.position = Vector3(-hw + 0.45, 0, -30.5)
@@ -584,6 +609,7 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 	_fuel_station(store, out)
 	_corral(store, out)
 	# street lamps — none in the fuel bay, so that corner stays dark except the pumps
+	var lamp_i := 0
 	for lp in [Vector3(-16, 0, 30), Vector3(6, 0, 36), Vector3(-20, 0, -40), Vector3(6, 0, -42), Vector3(-30, 0, 10)]:
 		box(store, Vector3(0.18, 6.0, 0.18), lp + Vector3(0, 3, 0), mat(Color(0.18, 0.18, 0.18)))
 		box(store, Vector3(1.0, 0.18, 0.45), lp + Vector3(0, 6.0, 0), mat(Color(1.0, 0.65, 0.3), 4.0))
@@ -594,11 +620,13 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		sl.light_energy = 4.0
 		sl.omni_attenuation = 1.3
 		sl.position = lp + Vector3(0, 5.6, 0)
-		store.add_child(sl)
+		_add_light(store, out, sl, 1 if lamp_i < 2 else 2, sl.omni_range)
+		lamp_i += 1
 	# chain-link fence around the lot
 	var post_m := mat(Color(0.35, 0.36, 0.37), 0.0, 0.4, 0.7)
 	var mesh_m := mat(Color(0.5, 0.52, 0.55, 0.28), 0.0, 0.5, 0.3)
 	var fh := 2.2
+	var post_xf: Array = []
 	# Front fence (+Z) has a driveway gap at x -5..5.
 	var front_y: float = f.end.y
 	for side in [[Vector2(f.position.x, f.position.y), Vector2(f.end.x, f.position.y)], [Vector2(f.position.x, front_y), Vector2(-5, front_y)], [Vector2(5, front_y), Vector2(f.end.x, front_y)], [Vector2(f.position.x, f.position.y), Vector2(f.position.x, f.end.y)], [Vector2(f.end.x, f.position.y), Vector2(f.end.x, f.end.y)]]:
@@ -613,9 +641,10 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		add_collider(store, Vector3(maxf(size.x, 0.3), 3.0, maxf(size.z, 0.3)), Vector3(c.x, 1.5, c.y))
 		var t := 0.0
 		while t <= length + 0.01:
-			var p := a.lerp(b, t / length)
-			box(store, Vector3(0.07, fh + 0.1, 0.07), Vector3(p.x, (fh + 0.1) * 0.5, p.y), post_m)
+			var p: Vector2 = a.lerp(b, t / length)
+			post_xf.append(Transform3D(Basis.from_scale(Vector3(0.07, fh + 0.1, 0.07)), Vector3(p.x, (fh + 0.1) * 0.5, p.y)))
 			t += 3.0
+	_multibox(store, post_xf, post_m)
 	# Dumpster in the back lot
 	var dpos := Vector3(BACK_DOOR_X - 3.0, 0, ROOM_Z - 4.5)
 	var dg := mat(Color(0.12, 0.3, 0.18), 0.0, 0.7, 0.3)
@@ -657,7 +686,7 @@ static func _fuel_station(store: Node3D, out: Dictionary) -> void:
 		pl.light_energy = 2.4
 		pl.omni_range = 6.5
 		pl.position = Vector3(0, 2.7, 0)
-		pump.add_child(pl)
+		_add_light(pump, out, pl, 0, pl.omni_range)
 		label(pump, "FUEL", Vector3(0, 1.7, 0.2), 42, Color(1, 0.95, 0.8))
 		out.pumps.append({"pos": p, "yaw": PI * 0.5, "index": i})
 	label(store, "NIGHT FUEL", FUEL_POS + Vector3(0, 3.7, 3.6), 64, Color(1.0, 0.85, 0.3))

@@ -1,7 +1,7 @@
 # Progress
 
-## v1.2.1: **35%**
-The stockroom curtain is open and a headless reach test guards it. Next: cut draw calls and add graphics presets. iPhone 1.2 measured about 830 draw calls and 40 lights.
+## v1.2.1: **80%**
+Stockroom door is open. Draw calls are down and the pause menu has graphics presets. Next: version bump and the one CI build. iOS defaults to Low (10 lights, no MSAA, 0.7 scale, 60 FPS cap).
 
 ## v1.2: **100%**
 Shipped. One register, bigger store, no scanner, carts, cars, fuel, shop, saves, shotgun, and a smaller touch HUD. `tests/sim_test.gd` covers customers, cars, fuel, carts, and save migration.

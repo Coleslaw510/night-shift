@@ -343,29 +343,30 @@ func _give_up(reason := "Forget this...") -> void:
 	finished.emit(self, false)
 
 # ---------- update ----------
-func _others() -> Array:
+var _near: Array = []
+
+func _gather() -> void:
+	_near.clear()
 	if game == null:
-		return []
-	var others: Array = []
+		return
 	if is_instance_valid(game.player):
-		others.append(game.player)
+		_near.append(game.player)
 	if game.customers_root:
 		for c in game.customers_root.get_children():
 			if c != self:
-				others.append(c)
+				_near.append(c)
 	if is_inside_tree():
 		for cart in get_tree().get_nodes_in_group("cart"):
 			if cart == my_cart or cart.mode == Cart.M.FOLLOW:
 				continue
 			if cart.global_position.distance_to(global_position) < 2.2:
-				others.append(cart)
-	return others
+				_near.append(cart)
 
 func _steer(dir: Vector3) -> Vector3:
 	var steer := dir
 	var side := Vector3(-dir.z, 0.0, dir.x)
 	_avoid_lock = maxf(0.0, _avoid_lock - 0.016)
-	for o in _others():
+	for o in _near:
 		if not is_instance_valid(o):
 			continue
 		var rel: Vector3 = o.global_position - global_position
@@ -394,7 +395,7 @@ func _steer(dir: Vector3) -> Vector3:
 	return steer.normalized()
 
 func _separate() -> void:
-	for o in _others():
+	for o in _near:
 		if not is_instance_valid(o):
 			continue
 		var rel: Vector3 = global_position - o.global_position
@@ -485,6 +486,7 @@ func _unstick() -> void:
 				position += Vector3(0.7, 0, 0.7)
 
 func _process(delta: float) -> void:
+	_gather()
 	moving = false
 	if _emote_t > 0.0:
 		_emote_t -= delta

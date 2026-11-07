@@ -39,6 +39,7 @@ var status_label: Label
 var tasks_label: Label
 var prompt_label: Label
 var toast_label: Label
+var fps_label: Label
 var pause_panel: Control
 var summary_panel: Control
 var summary_text: Label
@@ -90,6 +91,13 @@ func _ready() -> void:
 	_line(root, Vector2(28, 84), 230)
 	tasks_label = _label(root, "", 17, AMBER)
 	tasks_label.position = Vector2(28, 94)
+	fps_label = _label(root, "", 16, GREEN)
+	fps_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	fps_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fps_label.offset_left = -80
+	fps_label.offset_right = 80
+	fps_label.offset_top = 4
+	fps_label.offset_bottom = 24
 	# top-right
 	money_label = _label(root, "$0", 40, GREEN)
 	money_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -463,6 +471,10 @@ func show_summary(stats: Dictionary) -> void:
 	summary_panel.visible = true
 
 func _process(delta: float) -> void:
+	if fps_label:
+		fps_label.visible = Settings.show_fps
+		if Settings.show_fps:
+			fps_label.text = "%d FPS" % int(Engine.get_frames_per_second())
 	if _toast_t > 0.0:
 		_toast_t -= delta
 		if _toast_t <= 0.0:
