@@ -58,7 +58,8 @@ func _physics_process(delta: float) -> void:
 	attack_t = maxf(0.0, attack_t - delta)
 	var to_player: Vector3 = target.global_position - global_position
 	to_player.y = 0
-	var chasing := to_player.length() <= alert_range
+	var player_in_stockroom := target.global_position.z <= StoreBuilder.ZB + 0.35
+	var chasing := player_in_stockroom and to_player.length() <= alert_range
 	var dir := to_player.normalized() if chasing and to_player.length() > 0.1 else Vector3.ZERO
 	if not chasing:
 		if patrol.is_empty():
@@ -71,6 +72,8 @@ func _physics_process(delta: float) -> void:
 			dir = to_way.normalized()
 	if dir.length() > 0.1:
 		global_position += dir * (chase_speed if chasing else speed) * delta
+		global_position.x = clampf(global_position.x, -18.0, 18.0)
+		global_position.z = clampf(global_position.z, StoreBuilder.ROOM_Z + 1.0, StoreBuilder.ZB - 0.65)
 		global_position.y = 0
 		rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 6.0))
 	label.visible = chasing

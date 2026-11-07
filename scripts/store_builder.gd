@@ -354,13 +354,18 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 			x += s.x + 0.04
 	_multimesh(store, xf, cols, 0.3)
 	# glass doors with chrome frames
+	var doors: Array = []
 	for i in 7:
 		var dx := -4.8 + i * 1.6
-		box(store, Vector3(1.55, 2.2, 0.03), Vector3(dx, 1.2, z + 0.62), glass)
-		box(store, Vector3(1.6, 0.06, 0.06), Vector3(dx, 0.1, z + 0.63), frame)
-		box(store, Vector3(1.6, 0.06, 0.06), Vector3(dx, 2.3, z + 0.63), frame)
-		box(store, Vector3(0.05, 2.25, 0.06), Vector3(dx - 0.78, 1.2, z + 0.63), frame)
-		box(store, Vector3(0.03, 0.7, 0.05), Vector3(dx + 0.65, 1.3, z + 0.68), frame)
+		var door := Node3D.new()
+		door.position = Vector3(dx, 0, z + 0.62)
+		store.add_child(door)
+		box(door, Vector3(1.55, 2.2, 0.03), Vector3(0, 1.2, 0), glass)
+		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, 0.1, 0.01), frame)
+		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, 2.3, 0.01), frame)
+		box(door, Vector3(0.05, 2.25, 0.06), Vector3(-0.78, 1.2, 0.01), frame)
+		box(door, Vector3(0.03, 0.7, 0.05), Vector3(0.65, 1.3, 0.06), frame)
+		doors.append(door)
 	box(store, Vector3(12.4, 0.5, 1.2), Vector3(0, 2.75, z), body)
 	var fl := OmniLight3D.new()
 	fl.light_color = Color(0.6, 0.85, 1.0)
@@ -372,7 +377,7 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	box(store, Vector3(6.2, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
 	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
 	# Broad interact surface for the freezer doors on desktop and touch.
-	out.freezer = Interact.make(store, Vector3(11.8, 2.0, 0.9), Vector3(0, 1.15, z + 0.58), target, {"kind": "freezer"})
+	out.freezer = {"body": Interact.make(store, Vector3(11.8, 2.0, 0.9), Vector3(0, 1.15, z + 0.58), target, {"kind": "freezer"}), "doors": doors}
 
 static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()
@@ -502,12 +507,14 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	# Full-width stockroom. Only the middle is lit; the far corners stay dark.
 	_wall_seg(store, Vector3(-hw - 0.1, 0, ZB), Vector3(-hw - 0.1, 0, ROOM_Z), wall)
 	_wall_seg(store, Vector3(hw + 0.1, 0, ZB), Vector3(hw + 0.1, 0, ROOM_Z), wall)
-	_wall_seg(store, Vector3(-hw, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X - 0.7, 0, ROOM_Z - 0.1), wall)
-	_wall_seg(store, Vector3(BACK_DOOR_X + 0.7, 0, ROOM_Z - 0.1), Vector3(hw, 0, ROOM_Z - 0.1), wall)
-	_wall_seg(store, Vector3(BACK_DOOR_X - 0.7, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X + 0.7, 0, ROOM_Z - 0.1), wall, H - 2.4, 2.4)
+	var back_open_half := 3.4
+	_wall_seg(store, Vector3(-hw, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X - back_open_half, 0, ROOM_Z - 0.1), wall)
+	_wall_seg(store, Vector3(BACK_DOOR_X + back_open_half, 0, ROOM_Z - 0.1), Vector3(hw, 0, ROOM_Z - 0.1), wall)
+	_wall_seg(store, Vector3(BACK_DOOR_X - back_open_half, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X + back_open_half, 0, ROOM_Z - 0.1), wall, H - 2.4, 2.4)
 	box(store, Vector3(0.08, H, ZB - ROOM_Z), Vector3(-hw - 0.2, H * 0.5, (ZB + ROOM_Z) * 0.5), ext)
 	box(store, Vector3(0.08, H, ZB - ROOM_Z), Vector3(hw + 0.2, H * 0.5, (ZB + ROOM_Z) * 0.5), ext)
-	box(store, Vector3(W + 0.5, H, 0.08), Vector3(0, H * 0.5, ROOM_Z - 0.22), ext)
+	_wall_seg(store, Vector3(-hw - 0.25, 0, ROOM_Z - 0.22), Vector3(BACK_DOOR_X - 0.8, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
+	_wall_seg(store, Vector3(BACK_DOOR_X + 0.8, 0, ROOM_Z - 0.22), Vector3(hw + 0.25, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
 	# Two pools of light down the middle. Corners get none.
 	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 4.0, 11.0)
 	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 2.4, 9.0)
@@ -762,6 +769,19 @@ static func _props(store: Node3D, out: Dictionary, target: Object) -> void:
 	_clutter_box(store, Vector3(19.1, 0, 21.0), Vector3(0.55, 0.38, 0.5), 0.6)
 	_clutter_box(store, Vector3(19.0, 0, ZB + 1.2), Vector3(0.8, 0.5, 0.6), 0.1)
 	_clutter_box(store, Vector3(-19.1, 0, ZB + 1.3), Vector3(0.6, 0.6, 0.6), -0.2)
+	# Damage set: hidden until a player-driven car enters the sales floor.
+	var damage := Node3D.new()
+	damage.name = "CrashDamage"
+	damage.visible = false
+	store.add_child(damage)
+	box(damage, Vector3(3.4, 0.16, 0.22), Vector3(11.5, 0.1, 1.5), mat(Color(0.12, 0.12, 0.13)))
+	var damage_steel := mat(Color(0.2, 0.35, 0.6), 0.0, 0.5, 0.4)
+	box(damage, Vector3(0.22, 1.8, 0.22), Vector3(10.0, 0.85, 1.5), damage_steel)
+	box(damage, Vector3(0.22, 1.4, 0.22), Vector3(12.8, 0.7, 1.5), damage_steel)
+	for shard in [Vector3(10.8, 0.35, 1.0), Vector3(11.8, 0.25, 2.0), Vector3(12.6, 0.4, 1.1)]:
+		var glass_shard := box(damage, Vector3(0.5, 0.03, 0.08), shard, mat(Color(0.55, 0.75, 0.9, 0.55), 0.3, 0.05))
+		glass_shard.rotation.y = 0.4
+	out.damage = damage
 	# Wet floor sign
 	var ws := Node3D.new()
 	ws.position = Vector3(18.4, 0, 20.2)

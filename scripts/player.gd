@@ -33,6 +33,7 @@ var flash: SpotLight3D
 var has_light := false
 var stamina := 100.0
 var stamina_max := 100.0
+var unlimited_sprint := true
 var boost_t := 0.0
 var has_gun := false
 var gun_out := false
@@ -366,7 +367,7 @@ func _keeps_interact(t: Node) -> bool:
 	if not ("tag" in t) or not (t.tag is Dictionary):
 		return t.has_method("interact")
 	var kind := str(t.tag.get("kind", ""))
-	return kind in ["register", "shelf", "crate", "can", "dumpster", "back_door", "terminal", "locker"]
+	return kind in ["register", "shelf", "crate", "can", "dumpster", "back_door", "freezer", "terminal", "locker"]
 
 func _push_carts() -> void:
 	for i in get_slide_collision_count():
@@ -443,11 +444,15 @@ func _physics_process(delta: float) -> void:
 	if boost_t > 0.0:
 		boost_t -= delta
 	var want_sprint := Input.is_action_pressed("sprint") or sprint_toggle
-	var sprinting := want_sprint and stamina > 6.0
-	if sprinting:
-		stamina = maxf(0.0, stamina - 22.0 * delta)
+	var sprinting := want_sprint
+	if unlimited_sprint:
+		stamina = stamina_max
 	else:
-		stamina = minf(stamina_max, stamina + 14.0 * delta)
+		if sprinting:
+			stamina = maxf(0.0, stamina - 22.0 * delta)
+		else:
+			stamina = minf(stamina_max, stamina + 14.0 * delta)
+			sprinting = sprinting and stamina > 6.0
 	var spd := (SPRINT * (1.18 if boost_t > 0.0 else 1.0)) if sprinting else WALK
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)

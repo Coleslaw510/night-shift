@@ -19,6 +19,7 @@ var player: CharacterBody3D
 var registers: Array = []
 var customers_root: Node3D
 var cars_root: Node3D
+var fuel_people_root: Node3D
 var fuel_job: Dictionary = {}
 var _spot_owner := {}
 var _pump_owner := {}
@@ -33,6 +34,8 @@ var freezer_stock := {}
 var driving_car: Node = null
 var criminals_stopped := 0
 var criminals_escaped := 0
+var vehicle_exit_lock := 0.0
+var fuel_pedestrians := {}
 var front_open := 0.0
 var _hint_t := 0.0
 var _cull_t := 0.0
@@ -87,6 +90,10 @@ func _ready() -> void:
 	cars_root.name = "Cars"
 	cars_root.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(cars_root)
+	fuel_people_root = Node3D.new()
+	fuel_people_root.name = "FuelCustomers"
+	fuel_people_root.process_mode = Node.PROCESS_MODE_PAUSABLE
+	add_child(fuel_people_root)
 	_spawn_ambient_cars()
 	hud = preload("res://scripts/hud.gd").new()
 	hud.touch_mode = touch_mode
@@ -163,8 +170,9 @@ func _process(delta: float) -> void:
 	if get_tree().paused or shift_over:
 		return
 	if driving_car and is_instance_valid(driving_car):
+		vehicle_exit_lock = maxf(0.0, vehicle_exit_lock - delta)
 		player.global_position = driving_car.global_position + Vector3(0, 1.0, 0)
-		if Input.is_action_just_pressed("interact"):
+		if vehicle_exit_lock <= 0.0 and Input.is_action_just_pressed("interact"):
 			exit_vehicle()
 		return
 	play_seconds += delta
@@ -195,7 +203,7 @@ func _process(delta: float) -> void:
 	if allow_spawn and spawn_t <= 0.0 and elapsed < SHIFT_REAL_SECONDS * 0.95:
 		spawn_t = randf_range(10.0, 22.0)
 		if customers_root.get_child_count() < MAX_CUSTOMERS:
-			if randf() < 0.3 and _free_pump() != null:
+			if randf() < 0.55 and _free_pump() != null:
 				spawn_fuel_car()
 			else:
 				spawn_customer()
@@ -233,6 +241,7 @@ func enter_vehicle(car: Node) -> void:
 		car.driver = null
 	driving_car = car
 	car.player_driver = true
+	vehicle_exit_lock = 0.35
 	player.controls_enabled = false
 	player.set_carry({})
 	hud.toast("You are driving. WASD to steer, E to get out.")
@@ -244,6 +253,7 @@ func exit_vehicle() -> void:
 	var car := driving_car
 	driving_car = null
 	car.player_driver = false
+	car.vstate = Vehicle.V.PARKED
 	player.global_position = car.door_position()
 	player.controls_enabled = true
 	hud.toast("Back on foot.")
@@ -252,7 +262,9 @@ func vehicle_damaged_store(car: Node) -> void:
 	if car.damage_reported:
 		return
 	car.damage_reported = true
-	hud.toast("CRASH! Store damage: shelves rattled and glass cracked.", 4.0)
+	if store.has("damage"):
+		store.damage.visible = true
+	hud.toast("CRASH! A shelf collapsed and glass shattered.", 4.0)
 
 func on_criminal_escaped(_c: Node) -> void:
 	criminals_escaped += 1
@@ -347,10 +359,23 @@ func on_car_parked(car: Node) -> void:
 	spawned += 1
 
 func on_car_at_pump(car: Node) -> void:
-	car.say("...")
+	car.say("CUSTOMER FUELING")
+	var c = preload("res://scripts/customer.gd").new()
+	c.registers = registers
+	c.game = self
+	c.my_car = car
+	c.position = car.door_position()
+	c.process_mode = Node.PROCESS_MODE_DISABLED
+	c.finished.connect(_on_customer_finished)
+	fuel_people_root.add_child(c)
+	fuel_pedestrians[car] = c
 
-func on_car_gone(_car: Node) -> void:
+func on_car_gone(car: Node) -> void:
 	cars_departed += 1
+	var c: Node = fuel_pedestrians.get(car)
+	if c and is_instance_valid(c):
+		c.queue_free()
+	fuel_pedestrians.erase(car)
 
 func fuel_for(car: Node) -> Variant:
 	if fuel_job.is_empty() or fuel_job.get("car") != car:
@@ -616,12 +641,20 @@ func on_interact(body: Node, _p: Node) -> void:
 		"freezer":
 			if not freezer_open:
 				freezer_open = true
-				hud.toast("Freezer doors open — frozen stock is ready to refill.")
+				hud.toast("Freezer doors open — milk, pizza, and frozen goods are visible.")
 			else:
 				for pidx in Products.FROZEN_ITEMS:
 					freezer_stock[int(pidx)] = mini(12, int(freezer_stock.get(int(pidx), 0)) + 4)
 				freezer_open = false
 				hud.toast("Freezer refilled and doors shut.")
+			var doors: Array = store.freezer.doors
+			for i in doors.size():
+				var door: Node3D = doors[i]
+				var closed_z := float(door.get_meta("closed_z", door.position.z))
+				door.set_meta("closed_z", closed_z)
+				var open_z := closed_z + 0.58
+				var tw := create_tween()
+				tw.tween_property(door, "position:z", open_z if freezer_open else closed_z, 0.28).set_trans(Tween.TRANS_SINE)
 			play_sfx("click")
 		"checkout_gun":
 			if player.has_gun:
