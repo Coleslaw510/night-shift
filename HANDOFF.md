@@ -70,6 +70,8 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Mobile preset (`game._setup_mobile`): no MSAA, 0.8 3D scale, 60 fps cap, lighter glow. Lights and materials are unchanged so the look stays.
 - [x] iOS export preset (project-only Xcode export) and CI `ios` job: macos-15, Godot 4.4.1 plus the iOS template, xcodebuild unsigned arm64 → `NightShift-1.1.1.ipa`, Info.plist checks, and a simulator launch test (non-blocking).
 - [x] App icon `icon.png` (1024, rendered from the game plus a neon title; Godot generates all sizes).
+- [x] CI green: run 42341132892. `NightShift-1.1.1.ipa` is 25.0 MB (arm64, bundle ID com.coleslaw510.nightshift, MinimumOSVersion 16.0, landscape only).
+- Known: the simulator smoke step fails at link time (`ld: framework 'MetalFX' not found` in the iphonesimulator SDK; Godot weak-links MetalFX). It's continue-on-error. Possible fix: strip `-weak_framework MetalFX` from OTHER_LDFLAGS for sim builds. The on-device test is untested (no device here).
 
 ### v1.1 (current)
 - [x] Look matched to the concept art: warm dim lighting, a dark gridded ceiling with fluorescent strips (2 flicker), a tiled floor shader, packed colorful shelves with labels and price tags, a glowing freezer and "FREEZER AISLE ->" sign, beige boxy registers with belts, cardboard clutter, the scanner-in-hand viewmodel, and the concept-style HUD. See `docs/screenshot_1.1_interior.png`.
@@ -89,6 +91,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 <!-- STATUS-END -->
 
 ### Known issues / rough edges (1.1)
+- iPhone: touch tuning and frame rate are not playtested on real hardware. Unsigned IPA must be signed by the sideloader (Signulous).
 - Customers are kinematic (waypoints only). They stop for the player and each other but don't path around. If you stand in a lane, they wait ("Excuse me!").
 - Freezer items never run out (only aisle shelves are stockable).
 - Product labels are colored stripes, not real text. Crate labels in the stockroom are text.
