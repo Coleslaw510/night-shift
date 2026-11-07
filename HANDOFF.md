@@ -90,8 +90,9 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Shotgun targets customers and breaks their low-poly body into pieces.
 - [x] iOS pause overlay keeps its pause button available so the menu can be closed.
 - [x] Freezer aisle has an interact surface and open/close feedback.
-- [ ] Drivable customer cars and collision damage.
-- [ ] Criminal customer AI and full freezer inventory loop.
+- [x] Drivable parked cars with WASD steering; driving into the store reports crash damage.
+- [x] Criminal shoppers can steal frozen/aisle goods and flee; the shotgun can stop them.
+- [x] Freezer stock is finite, visible in the prompt, and replenished by opening then closing the freezer.
 
 ### v1.2.2
 - [x] Low was dark because it kept about 10 omni lights (the center aisle, freezer, stockroom spots, and pumps) and turned the rest off, with ambient at 0.24 and no bloom. Side aisles had almost no light.

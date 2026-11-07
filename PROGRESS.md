@@ -1,7 +1,7 @@
 # Progress
 
 ## v1.3.0: **in progress**
-The first playable v1.3 slice adds the larger dark back room, monster patrol/chase, customer hit reactions, checkout shotgun access, freezer interaction, and the iOS pause close fix. Vehicle driving, criminal AI, and a deeper freezer inventory loop remain next.
+The first playable v1.3 slice adds the larger dark back room, monster patrol/chase, customer hit reactions, checkout shotgun access, freezer interaction, and the iOS pause close fix. Cars can now be entered and driven, crashes report store damage, criminal shoppers flee with stolen goods, and freezer items are finite and refillable. Multiplayer/proximity voice and deeper store-damage persistence remain future work.
 
 ## v1.2.2: **100%**
 The sales floor stays readable on Low. Brightness comes from ambient, one fill light, and a glowing ceiling, not from a pile of omni lights. A Brightness slider is saved with the other graphics settings.

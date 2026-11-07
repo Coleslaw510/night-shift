@@ -43,6 +43,8 @@ var _detours := 0
 var _avoid_side := 1.0
 var _avoid_lock := 0.0
 var _excuse_said := false
+var is_criminal := false
+var stolen := false
 
 var body: Node3D
 var leg_l: Node3D
@@ -60,6 +62,7 @@ const PANTS := [Color(0.16, 0.22, 0.36), Color(0.11, 0.11, 0.12), Color(0.36, 0.
 
 func _ready() -> void:
 	_build_body()
+	is_criminal = randf() < 0.14
 	stops_left = randi_range(2, 4)
 	speed = randf_range(1.1, 1.45)
 	var door_z := StoreBuilder.D * 0.5
@@ -596,6 +599,8 @@ func _claim_cart() -> void:
 		_target_cart = null
 
 func _leave_car() -> void:
+	if stolen and game and game.has_method("on_criminal_escaped"):
+		game.on_criminal_escaped(self)
 	if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):
 		my_car.depart()
 	my_car = null
@@ -608,8 +613,14 @@ func _exit_tree() -> void:
 
 func _grab() -> void:
 	for k in randi_range(1, 2):
-		if _stop_row < 0:   # freezer never runs out
-			_add_item_to_basket(Products.CATALOG[Products.FROZEN_ITEMS.pick_random()])
+		if _stop_row < 0:
+			var frozen_idx: int = Products.FROZEN_ITEMS.pick_random()
+			var frozen: Dictionary = game.take_freezer_item(frozen_idx) if game else Products.CATALOG[frozen_idx]
+			if frozen.has("missing"):
+				annoyed += 1
+				if game: game.on_out_of_stock(frozen.missing)
+			else:
+				_add_item_to_basket(frozen)
 			continue
 		var got: Dictionary = game.shelves.take(_stop_row, _stop_side, position.z) if game else Products.random()
 		if got.has("missing"):
@@ -634,6 +645,11 @@ func _idle(delta: float) -> void:
 						_next_stop()
 					elif items.is_empty():
 						_give_up("Nothing I wanted...")
+					elif is_criminal:
+						stolen = true
+						emote("FREE!", Color(1, 0.25, 0.2))
+						path = _exit_path()
+						state = S.LEAVING
 					else:
 						_go_queue()
 func _go_queue() -> void:
@@ -684,5 +700,7 @@ func hit() -> void:
 			tw.tween_callback(part.queue_free)
 	var g := game
 	if g and g.hud:
-		g.hud.toast("Customer down. Call it a very bad shopping trip.")
+		if is_criminal:
+			g.criminals_stopped += 1
+			g.hud.toast("Thief stopped." if is_criminal else "Customer down. Call it a very bad shopping trip.")
 	queue_free()

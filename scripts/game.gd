@@ -29,6 +29,10 @@ var spawn_t := 3.0
 var trash := 0.35
 var back_door_open := false
 var freezer_open := false
+var freezer_stock := {}
+var driving_car: Node = null
+var criminals_stopped := 0
+var criminals_escaped := 0
 var front_open := 0.0
 var _hint_t := 0.0
 var _cull_t := 0.0
@@ -56,6 +60,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	randomize()
 	Economy.load_data()
+	for pidx in Products.FROZEN_ITEMS:
+		freezer_stock[int(pidx)] = 8
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
@@ -156,6 +162,11 @@ func toast(t: String) -> void:
 func _process(delta: float) -> void:
 	if get_tree().paused or shift_over:
 		return
+	if driving_car and is_instance_valid(driving_car):
+		player.global_position = driving_car.global_position + Vector3(0, 1.0, 0)
+		if Input.is_action_just_pressed("interact"):
+			exit_vehicle()
+		return
 	play_seconds += delta
 	_flicker()
 	_doors(delta)
@@ -206,6 +217,46 @@ func monster_attack(_m: Node) -> void:
 	stats.earnings = maxi(0, int(stats.earnings) - 100)
 	hud.set_money(stats.earnings)
 	player.global_position = Vector3(6.6, 0.05, 15.4)
+
+func take_freezer_item(product_idx: int) -> Dictionary:
+	var left := int(freezer_stock.get(product_idx, 0))
+	if left <= 0:
+		return {"missing": Products.CATALOG[product_idx]}
+	freezer_stock[product_idx] = left - 1
+	return Products.CATALOG[product_idx]
+
+func enter_vehicle(car: Node) -> void:
+	if driving_car or car == null or car.vstate != Vehicle.V.PARKED:
+		return
+	if car.driver and is_instance_valid(car.driver):
+		car.driver.queue_free()
+		car.driver = null
+	driving_car = car
+	car.player_driver = true
+	player.controls_enabled = false
+	player.set_carry({})
+	hud.toast("You are driving. WASD to steer, E to get out.")
+
+func exit_vehicle() -> void:
+	if driving_car == null or not is_instance_valid(driving_car):
+		driving_car = null
+		return
+	var car := driving_car
+	driving_car = null
+	car.player_driver = false
+	player.global_position = car.door_position()
+	player.controls_enabled = true
+	hud.toast("Back on foot.")
+
+func vehicle_damaged_store(car: Node) -> void:
+	if car.damage_reported:
+		return
+	car.damage_reported = true
+	hud.toast("CRASH! Store damage: shelves rattled and glass cracked.", 4.0)
+
+func on_criminal_escaped(_c: Node) -> void:
+	criminals_escaped += 1
+	hud.toast("A thief got away with unpaid goods.")
 
 func spawn_customer() -> Node:
 	var spot: Variant = _take_spot()
@@ -525,7 +576,9 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 		"back_door":
 			return "[E] %s back door" % ("Close" if back_door_open else "Open")
 		"freezer":
-			return "[E] Close freezer doors" if freezer_open else "[E] Open freezer doors"
+			var low := 0
+			for v in freezer_stock.values(): low += int(v)
+			return "[E] Refill freezer stock  (%d frozen items left)" % low if freezer_open else "[E] Open freezer doors  (%d frozen items)" % low
 		"checkout_gun":
 			return "[E] Take the emergency shotgun" if not player.has_gun else "Emergency shotgun (empty)"
 		"locker":
@@ -561,8 +614,14 @@ func on_interact(body: Node, _p: Node) -> void:
 		"back_door":
 			toggle_back_door()
 		"freezer":
-			freezer_open = not freezer_open
-			hud.toast("Freezer doors %s — frozen goods are stocked here." % ("open" if freezer_open else "closed"))
+			if not freezer_open:
+				freezer_open = true
+				hud.toast("Freezer doors open — frozen stock is ready to refill.")
+			else:
+				for pidx in Products.FROZEN_ITEMS:
+					freezer_stock[int(pidx)] = mini(12, int(freezer_stock.get(int(pidx), 0)) + 4)
+				freezer_open = false
+				hud.toast("Freezer refilled and doors shut.")
 			play_sfx("click")
 		"checkout_gun":
 			if player.has_gun:

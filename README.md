@@ -7,6 +7,7 @@ aisle, carts, a parking lot, and a fuel bay out back of the lights. (Single play
 - WASD move · Mouse look · Shift sprint (uses stamina) · Space jump
 - E or left-click: use. Hold E on a shelf to stock. E drops whatever you're holding if you aren't looking at a shelf.
 - Q: drop what you're holding · C: grab or drop a cart · G: equip or holster the shotgun · R: reload · F: flashlight · 1: eat a snack
+- E near a parked car: drive it · WASD steers while driving · E exits
 - Esc: pause (Save, Shop, and settings)
 
 ## Windows
