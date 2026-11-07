@@ -35,6 +35,7 @@ var driving_car: Node = null
 var criminals_stopped := 0
 var criminals_escaped := 0
 var vehicle_exit_lock := 0.0
+var driving_camera: Camera3D = null
 var fuel_pedestrians := {}
 var front_open := 0.0
 var _hint_t := 0.0
@@ -172,6 +173,9 @@ func _process(delta: float) -> void:
 	if driving_car and is_instance_valid(driving_car):
 		vehicle_exit_lock = maxf(0.0, vehicle_exit_lock - delta)
 		player.global_position = driving_car.global_position + Vector3(0, 1.0, 0)
+		if driving_camera:
+			driving_camera.global_position = driving_car.global_position + Vector3(0, 9.5, 6.5)
+			driving_camera.look_at(driving_car.global_position + Vector3(0, 0.0, -0.5), Vector3.UP)
 		if vehicle_exit_lock <= 0.0 and Input.is_action_just_pressed("interact"):
 			exit_vehicle()
 		return
@@ -244,7 +248,16 @@ func enter_vehicle(car: Node) -> void:
 	vehicle_exit_lock = 0.35
 	player.controls_enabled = false
 	player.set_carry({})
-	hud.toast("You are driving. WASD to steer, E to get out.")
+	player.cam.current = false
+	if driving_camera == null:
+		driving_camera = Camera3D.new()
+		driving_camera.name = "DrivingCamera"
+		driving_camera.fov = 58.0
+		add_child(driving_camera)
+	driving_camera.current = true
+	driving_camera.global_position = car.global_position + Vector3(0, 9.5, 6.5)
+	driving_camera.look_at(car.global_position, Vector3.UP)
+	hud.toast("Driving view: joystick/WASD to steer. E to get out.")
 
 func exit_vehicle() -> void:
 	if driving_car == null or not is_instance_valid(driving_car):
@@ -256,6 +269,9 @@ func exit_vehicle() -> void:
 	car.vstate = Vehicle.V.PARKED
 	player.global_position = car.door_position()
 	player.controls_enabled = true
+	if driving_camera:
+		driving_camera.current = false
+	player.cam.current = true
 	hud.toast("Back on foot.")
 
 func vehicle_damaged_store(car: Node) -> void:
@@ -654,8 +670,8 @@ func on_interact(body: Node, _p: Node) -> void:
 				door.set_meta("closed_z", closed_z)
 				var closed_rot := float(door.get_meta("closed_rot", 0.0))
 				door.set_meta("closed_rot", closed_rot)
-				var open_z := closed_z + 0.24
-				var open_rot := -0.82
+				var open_z := closed_z + 0.03
+				var open_rot := 1.05
 				var tw := create_tween().set_parallel(true)
 				tw.tween_property(door, "position:z", open_z if freezer_open else closed_z, 0.35).set_trans(Tween.TRANS_BACK)
 				tw.tween_property(door, "rotation:x", open_rot if freezer_open else closed_rot, 0.35).set_trans(Tween.TRANS_BACK)

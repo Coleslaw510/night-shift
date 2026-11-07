@@ -118,11 +118,14 @@ func _blocked(dir: Vector3) -> bool:
 func _physics_process(delta: float) -> void:
 	if player_driver:
 		var inp := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		if game and is_instance_valid(game.player) and game.player.touch_move.length() > inp.length():
+			inp = game.player.touch_move
+		# Top-down arcade driving: joystick/WASD directly chooses a world direction.
 		var dir := Vector3(inp.x, 0, inp.y)
 		if dir.length() > 0.05:
 			dir = dir.normalized()
-			global_position += dir * 8.0 * delta
-			rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 8.0))
+			global_position += dir * 9.5 * delta
+			rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 10.0))
 			if game and global_position.x > -19 and global_position.x < 19 and global_position.z > -16 and global_position.z < 23 and game.has_method("vehicle_damaged_store"):
 				game.vehicle_damaged_store(self)
 		return

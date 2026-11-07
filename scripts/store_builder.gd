@@ -336,7 +336,6 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
 	var glass := mat(Color(0.7, 0.88, 1.0, 0.2), 0.3, 0.05)
 	var frame := mat(Color(0.75, 0.78, 0.8), 0.0, 0.3, 0.7)
-	box(store, Vector3(12.4, 2.5, 1.2), Vector3(0, 1.25, z), body)
 	# Fixed freezer cabinet: leave the front open so the food is visible.
 	box(store, Vector3(12.4, 0.35, 1.2), Vector3(0, 0.18, z), body)
 	box(store, Vector3(0.28, 2.35, 1.2), Vector3(-6.06, 1.18, z), body)
@@ -358,20 +357,27 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 			cols.append(p.color.lerp(Color.WHITE, 0.25))
 			x += s.x + 0.04
 	_multimesh(store, xf, cols, 0.3)
-	# glass doors with chrome frames
+	# Large front-facing cartons make the food unmistakable through the doors.
+	for lv in [0.35, 0.8, 1.25, 1.7]:
+		var x2 := -5.55
+		while x2 < 5.5:
+			var product: Dictionary = Products.CATALOG[Products.FROZEN_ITEMS[(abs(int(x2 * 10.0)) + int(lv * 10.0)) % Products.FROZEN_ITEMS.size()]]
+			_crate(store, Vector3(x2, lv, z + 0.43), product, 0.0)
+			x2 += 1.35
+	# Seven independent glass doors, each hinged along its top edge.
 	var doors: Array = []
 	for i in 7:
 		var dx := -4.8 + i * 1.6
 		var door := Node3D.new()
-		door.position = Vector3(dx, 0, z + 0.62)
+		door.position = Vector3(dx, 2.3, z + 0.62)
 		store.add_child(door)
-		box(door, Vector3(1.55, 2.2, 0.03), Vector3(0, 1.2, 0), glass)
-		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, 0.1, 0.01), frame)
-		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, 2.3, 0.01), frame)
-		box(door, Vector3(0.05, 2.25, 0.06), Vector3(-0.78, 1.2, 0.01), frame)
-		box(door, Vector3(0.03, 0.7, 0.05), Vector3(0.65, 1.3, 0.06), frame)
-		box(door, Vector3(0.08, 0.42, 0.08), Vector3(0.58, 1.26, 0.09), mat(Color(0.95, 0.78, 0.25), 0.0, 0.35, 0.8))
-		box(door, Vector3(0.025, 2.18, 0.04), Vector3(0.76, 1.2, 0.09), mat(Color(0.4, 0.8, 1.0), 1.2, 0.2))
+		box(door, Vector3(1.55, 2.2, 0.03), Vector3(0, -1.1, 0), glass)
+		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, -0.03, 0.01), frame)
+		box(door, Vector3(1.6, 0.06, 0.06), Vector3(0, -2.23, 0.01), frame)
+		box(door, Vector3(0.05, 2.25, 0.06), Vector3(-0.78, -1.1, 0.01), frame)
+		box(door, Vector3(0.03, 0.7, 0.05), Vector3(0.65, -1.0, 0.06), frame)
+		box(door, Vector3(0.08, 0.42, 0.08), Vector3(0.58, -1.04, 0.09), mat(Color(0.95, 0.78, 0.25), 0.0, 0.35, 0.8))
+		box(door, Vector3(0.025, 2.18, 0.04), Vector3(0.76, -1.1, 0.09), mat(Color(0.4, 0.8, 1.0), 1.2, 0.2))
 		doors.append(door)
 	box(store, Vector3(12.4, 0.5, 1.2), Vector3(0, 2.75, z), body)
 	var fl := OmniLight3D.new()
@@ -551,10 +557,11 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	# Long rack rows make the back room feel sprawling and create sightline breaks.
 	for rz in [-25.0, -31.0, -37.0, -41.0]:
 		for rx in [-12.0, -4.0, 4.0, 12.0]:
-			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 1.35, rz), orange)
-			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 0.35, rz), orange)
+			var rack_solid: bool = rz != -31.0
+			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 1.35, rz), orange, rack_solid)
+			box(store, Vector3(5.8, 0.08, 0.7), Vector3(rx, 0.35, rz), orange, rack_solid)
 			for ux in [-2.8, 2.8]:
-				box(store, Vector3(0.08, 2.5, 0.7), Vector3(rx + ux, 1.2, rz), steel)
+				box(store, Vector3(0.08, 2.5, 0.7), Vector3(rx + ux, 1.2, rz), steel, rack_solid)
 				# Bright, labeled cartons make the stockroom readable at a glance.
 				for level in [0.45, 1.45]:
 					for offset in [-2.1, -0.7, 0.7, 2.1]:
@@ -562,10 +569,10 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 						_crate(store, Vector3(rx + offset, level, rz + 0.18), product, 0.03 * offset)
 	# Empty racks in the dark corners (somewhere for a monster to stand later)
 	for corner in [Vector3(-16.5, 0, -31.5), Vector3(16.5, 0, -31.0)]:
-		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 1.3, 0), orange)
-		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 0.3, 0), orange)
+		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 1.3, 0), orange, true)
+		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 0.3, 0), orange, true)
 		for ux in [-1.5, 1.5]:
-			box(store, Vector3(0.08, 2.4, 0.9), corner + Vector3(ux, 1.2, 0), steel)
+			box(store, Vector3(0.08, 2.4, 0.9), corner + Vector3(ux, 1.2, 0), steel, true)
 	# Back-office desk (the shop terminal gets wired to this collider)
 	var desk := Vector3(-4.6, 0, ZB - 1.8)
 	box(store, Vector3(1.5, 0.08, 0.7), desk + Vector3(0, 0.78, 0), mat(Color(0.35, 0.28, 0.2)))
