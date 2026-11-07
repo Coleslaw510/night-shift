@@ -17,7 +17,7 @@ func _process(_d: float) -> bool:
 	frames += 1
 	if game.has_method("debug_screenshot_setup"):
 		game.debug_screenshot_setup(frames)
-	if frames in [90, 200]:
+	if frames in [139, 200]:
 		var img := root.get_viewport().get_texture().get_image()
 		var p := "%s/shot_%d.png" % [outdir, frames]
 		img.save_png(p)

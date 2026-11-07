@@ -1,3 +1,3 @@
 # Baseline progress
 
-**45%** — (a) skeleton/CI, (b) store + HUD, (c) first-person player + pause done. Next: (d) customers.
+**95%** — steps (a)-(f) done: store, player, customers, checkout + earnings, shift clock + summary, menu. Remaining: confirm CI Windows/Mac builds.

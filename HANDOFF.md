@@ -59,10 +59,28 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] (a) Repo + project skeleton + HANDOFF + CI
 - [x] (b) Store layout + lighting + HUD
 - [x] (c) Player movement
-- [ ] (d) Customers
-- [ ] (e) Register / checkout + earnings
-- [ ] (f) Shift clock + summary + menu
+- [x] (d) Customers
+- [x] (e) Register / checkout + earnings
+- [x] (f) Shift clock + summary + menu
+- [ ] Next: multiplayer (see Roadmap #1)
 <!-- STATUS-END -->
+
+### What works (baseline 0.1.0)
+- Main menu (Start Shift / Quit), first-person walk/sprint/jump, Esc pause (Resume / Quit to Menu).
+- Store: shelves with ~1k product boxes (one MultiMesh), glowing freezer, 2 checkout lanes,
+  12 fluorescent lights (2 flicker), dark windows + parking lot lamps.
+- Customers (randomized skin/hair/clothes/height, caps) enter, visit 2-4 shelf/freezer stops,
+  fill a red basket, pick the shorter lane, queue, unload onto the belt, pay, leave.
+  They give up after 150 s waiting (counted in the summary).
+- Scan belt items with E/click (beep + screen flash), register screen shows items + total,
+  earnings in HUD, toast on payment.
+- Shift clock 10:00 PM -> 6:00 AM over 10 real minutes, end-of-shift summary.
+
+### Known issues / rough edges
+- Customers ignore physics (kinematic waypoints); they can clip through the player.
+- Front door is an invisible wall for the player (staff can't leave mid-shift).
+- No music/ambience yet; beep is a generated tone. No settings menu (mouse sensitivity fixed).
+- Tuning (spawn rate 10-22 s, max 7 customers, patience 150 s) is untested with humans.
 
 ## Roadmap (after baseline)
 1. **Multiplayer**: Godot high-level multiplayer (ENet/WebSocket), host + clients, synced

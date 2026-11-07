@@ -120,12 +120,22 @@ static func _shell(store: Node3D, out: Dictionary) -> void:
 	# Front wall: kick wall + header + dark glass, door gap at DOOR_X.
 	var frame := mat(Color(0.25, 0.27, 0.28), 0.0, 0.4, 0.6)
 	var glass := mat(Color(0.02, 0.04, 0.08, 0.85), 0.0, 0.05, 0.3)
-	box(store, Vector3(W, 0.6, 0.25), Vector3(0, 0.3, hd), frame)
 	box(store, Vector3(W, 0.9, 0.25), Vector3(0, H - 0.45, hd), frame)
-	box(store, Vector3(W, H - 1.5, 0.05), Vector3(0, 0.6 + (H - 1.5) * 0.5, hd), glass)
+	# Two wall segments either side of the (open) automatic door gap.
+	var gap0 := DOOR_X - 1.1
+	var gap1 := DOOR_X + 1.1
+	for seg in [[-hw, gap0], [gap1, hw]]:
+		var sw: float = seg[1] - seg[0]
+		var sc: float = (seg[0] + seg[1]) * 0.5
+		box(store, Vector3(sw, 0.6, 0.25), Vector3(sc, 0.3, hd), frame)
+		box(store, Vector3(sw, H - 1.5, 0.05), Vector3(sc, 0.6 + (H - 1.5) * 0.5, hd), glass)
+	# Slid-open door panels
+	for dx in [gap0 - 0.5, gap1 + 0.5]:
+		box(store, Vector3(1.0, H - 0.9, 0.04), Vector3(dx, (H - 0.9) * 0.5, hd - 0.2), glass)
 	var px := -hw
 	while px <= hw:
-		box(store, Vector3(0.12, H, 0.27), Vector3(px, H * 0.5, hd), frame)
+		if absf(px - DOOR_X) > 1.0:
+			box(store, Vector3(0.12, H, 0.27), Vector3(px, H * 0.5, hd), frame)
 		px += 3.0
 	add_collider(store, Vector3(W, H, 0.3), Vector3(0, H * 0.5, hd))
 	# Door frame + mat
@@ -283,7 +293,7 @@ static func _checkouts(store: Node3D, out: Dictionary) -> void:
 		lane_root.add_child(lab)
 		# lane light pole + number
 		box(lane_root, Vector3(0.06, 1.4, 0.06), Vector3(cx, 1.6, 8.9), reg_m)
-		box(lane_root, Vector3(0.3, 0.3, 0.3), Vector3(cx, 2.4, 8.9), mat(Color(0.2, 0.9, 0.4), 2.5))
+		box(lane_root, Vector3(0.18, 0.18, 0.18), Vector3(cx, 2.45, 8.9), mat(Color(0.2, 0.9, 0.4), 2.5))
 		var num := Label3D.new()
 		num.text = str(i + 1)
 		num.font_size = 64
