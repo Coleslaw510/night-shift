@@ -10,9 +10,9 @@ signal finished(customer, paid: bool)
 
 enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING }
 
-const AISLES := [-11.0, -8.0, -4.75, 0.0, 4.75, 8.0, 11.0]
-const FRONT_Z := 3.0
-const BACK_Z := -7.4
+const AISLES := [-18.2, -14.3, -10.9, -7.5, -4.0, 0.0, 4.0, 7.5, 10.9, 14.3, 18.2]
+const FRONT_Z := 8.2
+const BACK_Z := -13.2
 const PATIENCE := 150.0
 
 var state := S.ENTER
@@ -54,7 +54,8 @@ func _ready() -> void:
 	_build_body()
 	stops_left = randi_range(2, 4)
 	speed = randf_range(1.1, 1.45)
-	path = [Vector3(StoreBuilder.DOOR_X, 0, 13.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+	var door_z := StoreBuilder.D * 0.5
+	path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 
 func _part(parent: Node3D, size: Vector3, pos: Vector3, c: Color, rough := 0.85) -> MeshInstance3D:
 	return StoreBuilder.box(parent, size, pos, StoreBuilder.mat(c, 0.0, rough))
@@ -194,7 +195,7 @@ func _route(from: Vector3, to: Vector3) -> Array:
 	var on_from_corr := absf(from.z - FRONT_Z) < 0.1 or absf(from.z - BACK_Z) < 0.1
 	if on_from_corr and absf(from.z - to.z) < 0.1:
 		return [to]
-	if absf(from.x - to.x) < 0.05 and (_is_aisle(from.x) or absf(from.x) < 2.0):
+	if absf(from.x - to.x) < 0.05 and (_is_aisle(from.x) or absf(from.x) < 1.5):
 		return [to]
 	var cz := FRONT_Z
 	if to.z <= BACK_Z + 0.1:
@@ -234,7 +235,7 @@ func _next_stop() -> void:
 	var target: Vector3
 	_stop_row = -1
 	if randf() < 0.25:
-		target = Vector3(randf_range(-3.4, 3.4), 0, StoreBuilder.ZB + 2.0)
+		target = Vector3(randf_range(-5.2, 5.2), 0, StoreBuilder.ZB + 2.2)
 		face_dir = Vector3(0, 0, -1)
 	else:
 		var ax: float = AISLES.pick_random()
@@ -290,7 +291,8 @@ func pay_and_leave(mood := "") -> void:
 	if mood != "":
 		emote(mood, Color(0.5, 1, 0.6) if mood.begins_with("Thanks") else Color(1, 0.4, 0.3))
 	var lx := position.x
-	path = [Vector3(lx, 0, 10.3), Vector3(StoreBuilder.DOOR_X, 0, 10.3), Vector3(StoreBuilder.DOOR_X, 0, 18.0), Vector3(StoreBuilder.DOOR_X + randf_range(-3, 3), 0, 27.0)]
+	var door_z := StoreBuilder.D * 0.5
+	path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)]
 	finished.emit(self, true)
 
 func _give_up(reason := "Forget this...") -> void:
@@ -299,8 +301,9 @@ func _give_up(reason := "Forget this...") -> void:
 	state = S.LEAVING
 	clear_basket()
 	emote(reason)
+	var door_z := StoreBuilder.D * 0.5
 	path = _path_to(Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z))
-	path.append_array([Vector3(StoreBuilder.DOOR_X, 0, 18.0), Vector3(StoreBuilder.DOOR_X + randf_range(-3, 3), 0, 27.0)])
+	path.append_array([Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)])
 	finished.emit(self, false)
 
 # ---------- update ----------

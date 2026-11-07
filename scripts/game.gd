@@ -65,8 +65,8 @@ func _ready() -> void:
 	hud.change_cancelled.connect(close_change)
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
-	player.position = Vector3(0.0, 0.05, 8.2)
-	player.rotation.y = 0.0
+	player.position = Vector3(6.6, 0.05, 15.4)
+	player.rotation.y = PI * 0.5
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(player)
 	player.touch_mode = touch_mode
@@ -88,7 +88,7 @@ func _ready() -> void:
 		tc.game = self
 		tc.player = player
 		add_child(tc)
-	hud.toast("Customers check out at lanes 1 and 2. Stock room is through the back.", 6.0)
+	hud.toast("One register, on your right. Stockroom is straight through the back.", 6.0)
 	_update_clock()
 	_update_hints()
 
@@ -155,10 +155,11 @@ func spawn_customer() -> Node:
 	var c = preload("res://scripts/customer.gd").new()
 	c.registers = registers
 	c.game = self
-	c.position = Vector3(StoreBuilder.DOOR_X + randf_range(-0.4, 0.4), 0, 26.0)
+	var door_z := StoreBuilder.D * 0.5
+	c.position = Vector3(StoreBuilder.DOOR_X + randf_range(-0.4, 0.4), 0, door_z + 8.0)
 	c.finished.connect(_on_customer_finished)
 	customers_root.add_child(c)
-	c.path.push_front(Vector3(StoreBuilder.DOOR_X, 0, 18.0))
+	c.path.push_front(Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0))
 	spawned += 1
 	return c
 
@@ -462,27 +463,35 @@ func debug_pose(shot: String) -> void:
 	player.cam.rotation.x = 0.0
 	match shot:
 		"interior":
-			player.position = Vector3(0.0, 0.05, 11.3)
-			player.rotation.y = deg_to_rad(2)
-			player.cam.rotation.x = deg_to_rad(-7)
+			player.position = Vector3(0.0, 0.05, 18.5)
+			player.rotation.y = 0.0
+			player.cam.rotation.x = deg_to_rad(-8)
 		"outside":
-			player.position = Vector3(BACK_DOOR_POS().x - 1.0, 0.05, StoreBuilder.ROOM_Z - 9.0)
-			player.rotation.y = PI - 0.42
-			player.cam.rotation.x = deg_to_rad(-6)
+			player.position = Vector3(BACK_DOOR_POS().x - 3.0, 0.05, StoreBuilder.ROOM_Z - 6.0)
+			player.rotation.y = PI - 0.4
+			player.cam.rotation.x = deg_to_rad(-8)
 		"stockroom":
-			player.position = Vector3(10.5, 0.05, StoreBuilder.ZB - 1.0)
-			player.rotation.y = deg_to_rad(35)
-			player.cam.rotation.x = deg_to_rad(-12)
+			player.position = Vector3(0.0, 0.05, StoreBuilder.ZB - 1.5)
+			player.rotation.y = 0.0
+			player.cam.rotation.x = deg_to_rad(-10)
 		"icon":
 			hud.visible = false
 			player.viewmodel.visible = false
-			player.position = Vector3(-2.0, 0.05, 25.0)
+			player.position = Vector3(-6.0, 0.05, 34.0)
 			player.rotation.y = 0.0
-			player.cam.rotation.x = deg_to_rad(4)
+			player.cam.rotation.x = deg_to_rad(2)
 		"front":
-			player.position = Vector3(-1.0, 0.05, 28.5)
+			player.position = Vector3(-6.0, 0.05, 40.0)
 			player.rotation.y = 0.0
-			player.cam.rotation.x = deg_to_rad(-3)
+			player.cam.rotation.x = deg_to_rad(-4)
+		"lot":
+			player.position = Vector3(-2.0, 0.05, 44.0)
+			player.rotation.y = 0.0
+			player.cam.rotation.x = deg_to_rad(-6)
+		"fuel":
+			player.position = Vector3(StoreBuilder.FUEL_POS.x - 6.0, 0.05, StoreBuilder.FUEL_POS.z + 6.0)
+			player.rotation.y = deg_to_rad(140)
+			player.cam.rotation.x = deg_to_rad(-6)
 
 func BACK_DOOR_POS() -> Vector3:
 	return Vector3(StoreBuilder.BACK_DOOR_X, 0, StoreBuilder.ROOM_Z)

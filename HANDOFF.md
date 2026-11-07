@@ -51,23 +51,24 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - `tests/smoke_test.gd`: headless test that also self-tests change math, stocking, the trash loop and the locker. `tests/screenshot.gd` renders the doc shots.
 - `docs/concept/`: approved concept art. `docs/screenshot_*.png`: in-game renders.
 
-## World layout (meters, +Z = front/entrance)
-- Store interior x -12..12, z -11 (back wall, `ZB`) .. 15 (glass storefront). Ceiling at 3.6.
-- Shelf rows at x = -9.5, -6.5, -3, 3, 6.5, 9.5, spanning z -6..0.5, with a wide center aisle (x -2.4..2.4) that looks straight at the freezer.
-- Customer aisles (x): -11, -8, -4.75, 0 (center, stands at ±1.7), 4.75, 8, 11. Cross corridors run at z = 3 (front) and z = -7.4 (back).
-- Freezer: glass-door case on the back wall, x -4.2..4.2, with the "FREEZER AISLE ->" sign above it.
-- Checkouts: counters at x ±1.6 over z 4.9..9.1, with the registers at the z 8.5 end. Customers queue at x ±2.6. The cashier stands between the counters (x ~0).
-- Front automatic sliding door at x = 7 (z = 15). Glass storefront plus a left-wall window band.
-- Stockroom: x 2..12, z -11..-18, reached through a doorway at x = 7 in the back wall ("EMPLOYEES ONLY"). It has a stock rack with one crate per shelf product, the gun locker on its west wall, and a swinging back door at x = 9.7 (z = -18) that opens to the back lot.
-- Outside: asphalt lot fenced at x -26..26, z -33..31, with street lamps, wall lamps, 2 parked cars and the dumpster behind the stockroom.
-- Trash can behind lane 1 at (-4.6, 12.6).
+## World layout (meters, +Z = front/entrance) — v1.2
+- Store interior x -20..20, z -16 (back wall, `ZB`) .. 23 (glass storefront). Ceiling at 3.8.
+- Shelf rows at x = -16, -12.6, -9.2, -5.8, -2.2, 2.2, 5.8, 9.2, 12.6, 16, spanning z -11..6. Wide center aisle at x = 0 looks at the freezer.
+- Customer aisles: `StoreBuilder.AISLE_X`. Cross corridors at `FRONT_Z` 8.2 and `BACK_Z` -13.2.
+- Freezer: glass-door case on the back wall, about 12 m wide.
+- One checkout: counter at x 4.7, z ~14.5. The queue is at x 3.15 and folds sideways if it gets long (`QUEUE_HEAD_Z` / `QUEUE_MIN_Z`). Cashier stands on the +X side of the counter.
+- Front automatic sliding door at x = 0 (z = 23). Glass storefront plus a left-wall window band.
+- Stockroom: full width x -20..20, z -16..-34 (18 m deep). Lit only down the middle (two spotlights). Dark corners have empty racks. Stock crates sit just inside the employee door (x = 0). Gun locker is in the west dark corner. Back-office desk near the door. Swinging back door at x = 14, z = -34.
+- Outside: lot fenced at x -42..42, z -48..48, with a driveway gap in the front fence (x -5..5). Parking rows at z 32 and 39.5. Cart corral at (-8, 28). Fuel bay at (32, 31), dark except the pump lights. Dumpster in the back lot.
+- Trash can at (8.6, 19.2).
 
 ## Status
 <!-- STATUS-START -->
 ### v1.2 (in progress)
 - [x] Customer avoidance: they steer around each other and the player instead of freezing in contact. Queue spots are unique (the line folds instead of stacking on one point).
 - [x] Failsafe: a customer who makes no progress in a state is nudged, rerouted, snapped to the register if they are first in line, or forced to leave. Patience still runs while they are blocked, so nobody waits forever.
-- [ ] One register, bigger store, no scanner, carts, cars, fuel, shop, save, gun, touch HUD.
+- [x] One register and a bigger sales floor (10 shelf rows). Stockroom is full-width and 18 m deep, lit only in the middle, with dark corners. Fuel bay, cart corral and parking rows are built. Two cars sit in the lot until the driving AI lands.
+- [ ] No scanner, carts, driving cars, fuel job, shop, save, gun, touch HUD.
 - Version string is still 1.1.1 until the final 1.2 build.
 
 ### v1.1.1 (iPhone)
@@ -98,7 +99,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 
 ### Known issues / rough edges (1.1)
 - iPhone: touch tuning and frame rate are not playtested on real hardware. Unsigned IPA must be signed by the sideloader (Signulous).
-- Customers are kinematic (waypoints only). They stop for the player and each other but don't path around. If you stand in a lane, they wait ("Excuse me!").
+- Customers are kinematic (waypoints plus steering). They sidestep the player and each other. A failsafe unsticks a state that stops making progress.
 - Freezer items never run out (only aisle shelves are stockable).
 - Product labels are colored stripes, not real text. Crate labels in the stockroom are text.
 - Tuning (spawn 10-22 s, max 7 customers, patience 150 s, trash fill 150 s) has not been playtested.

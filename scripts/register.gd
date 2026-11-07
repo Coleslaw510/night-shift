@@ -32,6 +32,8 @@ func setup(lane: Dictionary, g: Node) -> void:
 	cash_x = lane.cash_x
 	face = lane.face
 	index = lane.index
+	head_z = float(lane.get("head_z", head_z))
+	queue_min_z = float(lane.get("queue_min_z", queue_min_z))
 	label = lane.label
 	screen = lane.screen
 	lane.terminal.target = self
@@ -66,7 +68,8 @@ func customer_at_front(c: Node) -> void:
 	total = 0
 	payment = {}
 	state = R.SCANNING
-	var z := 4.95
+	var z := head_z - 0.3
+	var z_limit := head_z + 2.3
 	for p in c.items:
 		var it = preload("res://scripts/belt_item.gd").new()
 		add_child(it)
@@ -75,8 +78,8 @@ func customer_at_front(c: Node) -> void:
 		it.rotation.y = randf_range(-0.3, 0.3)
 		belt.append(it)
 		z += maxf(p.size.x, 0.14) * 0.9 + 0.12
-		if z > 7.3:
-			z = 5.1
+		if z > z_limit:
+			z = head_z
 	c.clear_basket()
 	_update_label()
 
