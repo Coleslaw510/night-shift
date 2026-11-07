@@ -5,7 +5,7 @@ var frames := 0
 var game: Node
 var outdir := "user://"
 # frame -> [pose, filename]
-var plan := {150: ["interior", "interior"], 170: ["outside", "outside"], 190: ["front", "front"], 205: ["stockroom", "stockroom"], 225: ["change", "register_change"]}
+var plan := {90: ["interior", "store"], 120: ["lot", "lot"], 150: ["fuel", "fuel"], 180: ["interior", "touch_hud"]}
 var pending := ""
 
 func _initialize() -> void:
@@ -21,9 +21,8 @@ func _process(_d: float) -> bool:
 		Engine.time_scale = 10.0
 		for i in 6:
 			game.spawn_customer()
-	if frames == 130:
+	if frames == 70:
 		Engine.time_scale = 1.0
-		game.customers_root.process_mode = Node.PROCESS_MODE_DISABLED
 		game.hud.toast("")
 	if pending != "" :
 		var img := root.get_viewport().get_texture().get_image()
@@ -41,4 +40,4 @@ func _process(_d: float) -> bool:
 				game.debug_pose(pose)
 		if frames == f:
 			pending = plan[f][1]
-	return frames >= 230
+	return frames >= 190

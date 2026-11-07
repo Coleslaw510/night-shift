@@ -1,16 +1,18 @@
+class_name Customer
 extends Node3D
 ## Low-poly human customer with simple waypoint AI.
 ## States: ENTER -> SHOP -> QUEUED -> AT_REGISTER -> LEAVING.
 ## Movement is kinematic along aisle/corridor waypoints (see HANDOFF.md), no navmesh.
-## Avoids the player and other customers by waiting (with a short timeout for customers).
+## Steers around the player and other customers instead of stopping dead.
+## A per-state failsafe unsticks anyone who stops making progress.
 
 signal finished(customer, paid: bool)
 
-enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING }
+enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING, FETCH_CART }
 
-const AISLES := [-11.0, -8.0, -4.75, 0.0, 4.75, 8.0, 11.0]
-const FRONT_Z := 3.0
-const BACK_Z := -7.4
+const AISLES := [-18.2, -14.3, -10.9, -7.5, -4.0, 0.0, 4.0, 7.5, 10.9, 14.3, 18.2]
+const FRONT_Z := 8.2
+const BACK_Z := -13.2
 const PATIENCE := 150.0
 
 var state := S.ENTER
@@ -27,7 +29,19 @@ var queue_wait := 0.0
 var phase := 0.0
 var moving := false
 var annoyed := 0
-var blocked_t := 0.0
+var wants_cart := false
+var my_cart: Node = null
+var my_car: Node = null
+var test_fast := false
+var _target_cart: Node = null
+var fetch_t := 0.0
+var _return_cart := false
+var _abandon_cart := false
+var _stuck_t := 0.0
+var _anchor := Vector3.ZERO
+var _detours := 0
+var _avoid_side := 1.0
+var _avoid_lock := 0.0
 var _excuse_said := false
 
 var body: Node3D
@@ -48,7 +62,16 @@ func _ready() -> void:
 	_build_body()
 	stops_left = randi_range(2, 4)
 	speed = randf_range(1.1, 1.45)
-	path = [Vector3(StoreBuilder.DOOR_X, 0, 13.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+	var door_z := StoreBuilder.D * 0.5
+	if wants_cart and game and game.has_method("nearest_free_cart"):
+		var cart: Node = game.nearest_free_cart(global_position, self)
+		if cart:
+			state = S.FETCH_CART
+			_target_cart = cart
+			cart.reserved_by = self
+			path = [cart.global_position]
+			return
+	path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 
 func _part(parent: Node3D, size: Vector3, pos: Vector3, c: Color, rough := 0.85) -> MeshInstance3D:
 	return StoreBuilder.box(parent, size, pos, StoreBuilder.mat(c, 0.0, rough))
@@ -188,7 +211,7 @@ func _route(from: Vector3, to: Vector3) -> Array:
 	var on_from_corr := absf(from.z - FRONT_Z) < 0.1 or absf(from.z - BACK_Z) < 0.1
 	if on_from_corr and absf(from.z - to.z) < 0.1:
 		return [to]
-	if absf(from.x - to.x) < 0.05 and (_is_aisle(from.x) or absf(from.x) < 2.0):
+	if absf(from.x - to.x) < 0.05 and (_is_aisle(from.x) or absf(from.x) < 1.5):
 		return [to]
 	var cz := FRONT_Z
 	if to.z <= BACK_Z + 0.1:
@@ -228,7 +251,7 @@ func _next_stop() -> void:
 	var target: Vector3
 	_stop_row = -1
 	if randf() < 0.25:
-		target = Vector3(randf_range(-3.4, 3.4), 0, StoreBuilder.ZB + 2.0)
+		target = Vector3(randf_range(-5.2, 5.2), 0, StoreBuilder.ZB + 2.2)
 		face_dir = Vector3(0, 0, -1)
 	else:
 		var ax: float = AISLES.pick_random()
@@ -278,79 +301,249 @@ func choose_payment(total: int) -> Dictionary:
 		return {"method": "cash", "cash": total}
 	return {"method": "cash", "cash": opts.pick_random()}
 
+func _exit_path() -> Array:
+	var door_z := StoreBuilder.D * 0.5
+	if my_car and is_instance_valid(my_car) and my_car.has_method("door_position"):
+		var door: Vector3 = my_car.door_position()
+		return [Vector3(door.x, 0, door_z + 2.5), door]
+	return [Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0), Vector3(StoreBuilder.DOOR_X + randf_range(-4, 4), 0, door_z + 9.0)]
+
+func _drop_my_cart() -> void:
+	if my_cart and is_instance_valid(my_cart) and my_cart.has_method("release"):
+		if my_cart.follower == self:
+			my_cart.release()
+	my_cart = null
+	_return_cart = false
+	_abandon_cart = false
+
 func pay_and_leave(mood := "") -> void:
 	state = S.LEAVING
 	clear_basket()
 	if mood != "":
 		emote(mood, Color(0.5, 1, 0.6) if mood.begins_with("Thanks") else Color(1, 0.4, 0.3))
 	var lx := position.x
-	path = [Vector3(lx, 0, 10.3), Vector3(StoreBuilder.DOOR_X, 0, 10.3), Vector3(StoreBuilder.DOOR_X, 0, 18.0), Vector3(StoreBuilder.DOOR_X + randf_range(-3, 3), 0, 27.0)]
+	var door_z := StoreBuilder.D * 0.5
+	if my_cart and is_instance_valid(my_cart) and randf() < 0.65 and game:
+		_return_cart = true
+		var corral: Vector3 = game.corral_point()
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), corral]
+	elif my_cart and is_instance_valid(my_cart):
+		_abandon_cart = true
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), Vector3(randf_range(-14, 16), 0, door_z + 8.0)]
+	else:
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z + 1.5)]
+		path.append_array(_exit_path())
 	finished.emit(self, true)
 
 func _give_up(reason := "Forget this...") -> void:
 	if my_register:
 		my_register.leave(self)
+	_drop_my_cart()
 	state = S.LEAVING
 	clear_basket()
 	emote(reason)
 	path = _path_to(Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z))
-	path.append_array([Vector3(StoreBuilder.DOOR_X, 0, 18.0), Vector3(StoreBuilder.DOOR_X + randf_range(-3, 3), 0, 27.0)])
+	path.append_array(_exit_path())
 	finished.emit(self, false)
 
 # ---------- update ----------
-func _blocked(dir: Vector3) -> bool:
+var _near: Array = []
+
+func _gather() -> void:
+	_near.clear()
 	if game == null:
-		return false
-	var others: Array = [game.player]
-	others.append_array(game.customers_root.get_children())
-	for o in others:
-		if o == self or not is_instance_valid(o):
+		return
+	if is_instance_valid(game.player):
+		_near.append(game.player)
+	if game.customers_root:
+		for c in game.customers_root.get_children():
+			if c != self:
+				_near.append(c)
+	if is_inside_tree():
+		for cart in get_tree().get_nodes_in_group("cart"):
+			if cart == my_cart or cart.mode == Cart.M.FOLLOW:
+				continue
+			if cart.global_position.distance_to(global_position) < 2.2:
+				_near.append(cart)
+
+func _steer(dir: Vector3) -> Vector3:
+	var steer := dir
+	var side := Vector3(-dir.z, 0.0, dir.x)
+	_avoid_lock = maxf(0.0, _avoid_lock - 0.016)
+	for o in _near:
+		if not is_instance_valid(o):
 			continue
 		var rel: Vector3 = o.global_position - global_position
 		rel.y = 0
+		var dist := rel.length()
+		var rad := 1.05 if o == game.player else 0.78
+		if dist < 0.001 or dist > rad:
+			continue
 		var ahead := rel.dot(dir)
-		var lateral := (rel - dir * ahead).length()
-		if ahead > 0.05 and ahead < 0.85 and lateral < 0.45:
-			if o == game.player:
-				return true
-			# Customers: queue members never push through each other; others give up after 1.5 s.
-			if blocked_t < 1.5 or state == S.QUEUED:
-				return true
-	return false
+		if ahead < -0.25:
+			continue
+		var lat := rel.dot(side)
+		var push := (rad - dist) / rad
+		var away := side if lat <= 0.0 else -side
+		if absf(lat) < 0.08:
+			if _avoid_lock <= 0.0:
+				_avoid_side = 1.0 if randf() < 0.5 else -1.0
+				_avoid_lock = 0.55
+			away = side * _avoid_side
+		steer += away.normalized() * push * 2.2
+		if o == game.player and ahead > 0.15 and absf(lat) < 0.35 and not _excuse_said:
+			_excuse_said = true
+			emote("Excuse me!", Color(1, 0.9, 0.5), 1.2)
+	if steer.length() < 0.001:
+		return dir
+	return steer.normalized()
+
+func _separate() -> void:
+	for o in _near:
+		if not is_instance_valid(o):
+			continue
+		var rel: Vector3 = global_position - o.global_position
+		rel.y = 0
+		var min_d := 0.82 if o == game.player else 0.56
+		var dist := rel.length()
+		if dist < 0.001:
+			global_position += Vector3(0.08, 0, 0.03)
+		elif dist < min_d:
+			global_position += rel.normalized() * (min_d - dist) * 0.7
+	position.y = 0
+
+func _watch_stuck(delta: float) -> void:
+	var waiting: bool = state == S.QUEUED and path.is_empty() and my_register != null and not my_register.is_front(self)
+	var browsing: bool = state == S.SHOP and path.is_empty() and wait_t > 0.0
+	var paying: bool = state == S.AT_REGISTER and my_register != null and my_register.state != 0
+	if waiting or browsing or paying:
+		_anchor = position
+		_stuck_t = 0.0
+		return
+	if position.distance_to(_anchor) > 0.45:
+		_anchor = position
+		_stuck_t = 0.0
+		_detours = 0
+		return
+	_stuck_t += delta
+	var limit := 8.0
+	if state == S.AT_REGISTER:
+		limit = 12.0
+	if state == S.LEAVING:
+		limit = 6.0
+	if _stuck_t < limit:
+		return
+	_stuck_t = 0.0
+	_unstick()
+
+func _unstick() -> void:
+	_detours += 1
+	match state:
+		S.FETCH_CART:
+			_give_up_cart()
+			state = S.ENTER
+			path = [Vector3(StoreBuilder.DOOR_X, 0, StoreBuilder.D * 0.5 - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+		S.ENTER:
+			if _detours >= 2:
+				position = Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)
+				path.clear()
+				_detours = 0
+				_arrived()
+			else:
+				position += Vector3(1.2 if position.x < StoreBuilder.DOOR_X else -1.2, 0, 0.4)
+		S.SHOP:
+			position += Vector3(0.9 if _detours % 2 == 0 else -0.9, 0, 0.3)
+			if items.is_empty() or stops_left > 0:
+				_next_stop()
+			else:
+				_go_queue()
+			_detours = 0
+		S.QUEUED:
+			if my_register and my_register.is_front(self):
+				var spot: Vector3 = my_register.spot(0)
+				if position.distance_to(spot) < 2.6 or _detours >= 2:
+					position = spot
+					path.clear()
+					_detours = 0
+					_arrived()
+					return
+			if my_register:
+				var idx := maxi(my_register.queue.find(self), 0)
+				path = [my_register.spot(idx)]
+			position += Vector3(0.4, 0, 0.7)
+		S.AT_REGISTER:
+			if my_register and my_register.is_front(self) and my_register.state == 0:
+				my_register.customer_at_front(self)
+				_detours = 0
+			elif _detours >= 3:
+				_give_up("Forget this...")
+		S.LEAVING:
+			if path.is_empty() or _detours >= 3:
+				_leave_car()
+				queue_free()
+			else:
+				path.pop_front()
+				position += Vector3(0.7, 0, 0.7)
 
 func _process(delta: float) -> void:
+	# Substep so a long frame (a slow machine, or time scale) can't fling people
+	# through each other and leave them orbiting in place.
+	var left := delta
+	var steps := 0
+	while left > 0.0001 and steps < 40:
+		var step := minf(left, 0.05)
+		_tick(step)
+		left -= step
+		steps += 1
+
+func _tick(delta: float) -> void:
+	_gather()
 	moving = false
+	if state == S.FETCH_CART:
+		fetch_t += delta
+		var close := _target_cart and is_instance_valid(_target_cart) and global_position.distance_to(_target_cart.global_position) < 1.5
+		if close or fetch_t > 8.0:
+			if close:
+				_claim_cart()
+			else:
+				_give_up_cart()
+			state = S.ENTER
+			fetch_t = 0.0
+			var door_z := StoreBuilder.D * 0.5
+			path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
+			return
 	if _emote_t > 0.0:
 		_emote_t -= delta
 		if _emote_t <= 0.0:
 			emote_label.visible = false
+			_excuse_said = false
+	if (state == S.QUEUED or state == S.AT_REGISTER) and queue_wait <= PATIENCE:
+		queue_wait += delta
+		if queue_wait > PATIENCE:
+			_give_up("Too slow!")
+			return
 	if not path.is_empty():
 		var tgt: Vector3 = path[0]
 		var d := tgt - position
 		d.y = 0
 		var step := speed * delta
-		if d.length() <= step:
+		if d.length() <= maxf(step, 0.2):
 			position = Vector3(tgt.x, 0, tgt.z)
 			path.pop_front()
 			if path.is_empty():
 				_arrived()
 		else:
 			var dir := d.normalized()
-			if _blocked(dir):
-				blocked_t += delta
-				if blocked_t > 3.0 and not _excuse_said and game and game.player.global_position.distance_to(global_position) < 1.2:
-					_excuse_said = true
-					emote("Excuse me!", Color(1, 0.9, 0.5))
-			else:
-				blocked_t = 0.0
-				_excuse_said = false
-				position += dir * step
-				moving = true
+			var steer := dir if d.length() < 0.4 else _steer(dir)
+			position += steer * step
+			moving = true
 			rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, 10 * delta))
+		_separate()
 	else:
 		if face_dir != Vector3.ZERO:
 			rotation.y = lerp_angle(rotation.y, atan2(face_dir.x, face_dir.z), minf(1.0, 6 * delta))
 		_idle(delta)
+	_watch_stuck(delta)
 	_animate(delta)
 
 func _arrived() -> void:
@@ -358,8 +551,13 @@ func _arrived() -> void:
 		S.ENTER:
 			state = S.SHOP
 			_next_stop()
+		S.FETCH_CART:
+			_claim_cart()
+			state = S.ENTER
+			var door_z := StoreBuilder.D * 0.5
+			path = [Vector3(StoreBuilder.DOOR_X, 0, door_z - 1.4), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z)]
 		S.SHOP:
-			wait_t = randf_range(1.5, 3.0)
+			wait_t = 0.05 if test_fast else randf_range(1.5, 3.0)
 		S.QUEUED:
 			face_dir = Vector3(0, 0, 1)
 			if my_register and my_register.is_front(self):
@@ -367,7 +565,46 @@ func _arrived() -> void:
 				face_dir = Vector3(signf(my_register.counter_x - position.x), 0, 0)
 				my_register.customer_at_front(self)
 		S.LEAVING:
-			queue_free()
+			if (_return_cart or _abandon_cart) and my_cart and is_instance_valid(my_cart):
+				if _return_cart and game:
+					game.customer_return_cart(my_cart)
+				_drop_my_cart()
+				path = _exit_path()
+			else:
+				_leave_car()
+				_drop_my_cart()
+				queue_free()
+
+func _release_cart_reservation() -> void:
+	if _target_cart and is_instance_valid(_target_cart) and _target_cart.reserved_by == self:
+		_target_cart.reserved_by = null
+	_target_cart = null
+
+func _give_up_cart() -> void:
+	wants_cart = false
+	fetch_t = 0.0
+	_release_cart_reservation()
+
+func _claim_cart() -> void:
+	if my_cart or game == null:
+		return
+	var cart: Node = _target_cart if (_target_cart and is_instance_valid(_target_cart)) else game.nearest_free_cart(global_position, self)
+	if cart and cart.global_position.distance_to(global_position) < 1.8 and cart.mode != Cart.M.FOLLOW and cart.mode != Cart.M.HELD:
+		cart.follow(self)
+		cart.reserved_by = null
+		my_cart = cart
+		_target_cart = null
+
+func _leave_car() -> void:
+	if my_car and is_instance_valid(my_car) and my_car.has_method("depart"):
+		my_car.depart()
+	my_car = null
+
+func _exit_tree() -> void:
+	_leave_car()
+	if my_cart and is_instance_valid(my_cart) and my_cart.follower == self:
+		my_cart.release()
+	my_cart = null
 
 func _grab() -> void:
 	for k in randi_range(1, 2):
@@ -399,11 +636,6 @@ func _idle(delta: float) -> void:
 						_give_up("Nothing I wanted...")
 					else:
 						_go_queue()
-		S.QUEUED, S.AT_REGISTER:
-			queue_wait += delta
-			if queue_wait > PATIENCE:
-				_give_up("Too slow!")
-
 func _go_queue() -> void:
 	var best: Node = null
 	for r in registers:

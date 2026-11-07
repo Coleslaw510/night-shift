@@ -22,6 +22,8 @@ var state := R.IDLE
 var payment := {}                 # {"method", "cash"}
 var game: Node
 var _flash := 0.0
+var head_z := 6.2
+var queue_min_z := 3.5
 
 func setup(lane: Dictionary, g: Node) -> void:
 	game = g
@@ -30,6 +32,8 @@ func setup(lane: Dictionary, g: Node) -> void:
 	cash_x = lane.cash_x
 	face = lane.face
 	index = lane.index
+	head_z = float(lane.get("head_z", head_z))
+	queue_min_z = float(lane.get("queue_min_z", queue_min_z))
 	label = lane.label
 	screen = lane.screen
 	lane.terminal.target = self
@@ -39,7 +43,15 @@ func queue_size() -> int:
 	return queue.size()
 
 func spot(i: int) -> Vector3:
-	return Vector3(lane_x, 0, 6.2 - 1.15 * mini(i, 4))
+	# One spot per person. The line runs back toward the aisles, then folds
+	# sideways so nobody is ever assigned the same point (that froze the queue).
+	var spacing := 1.35
+	var straight := maxi(int((head_z - queue_min_z) / spacing), 1)
+	if i <= straight:
+		return Vector3(lane_x, 0, head_z - spacing * float(i))
+	var k := i - straight
+	var side := -1.0 if lane_x < counter_x else 1.0
+	return Vector3(lane_x + side * spacing * float(k), 0, queue_min_z)
 
 func join(c: Node) -> Vector3:
 	queue.append(c)
@@ -56,7 +68,8 @@ func customer_at_front(c: Node) -> void:
 	total = 0
 	payment = {}
 	state = R.SCANNING
-	var z := 4.95
+	var z := head_z - 0.3
+	var z_limit := head_z + 2.3
 	for p in c.items:
 		var it = preload("res://scripts/belt_item.gd").new()
 		add_child(it)
@@ -65,8 +78,8 @@ func customer_at_front(c: Node) -> void:
 		it.rotation.y = randf_range(-0.3, 0.3)
 		belt.append(it)
 		z += maxf(p.size.x, 0.14) * 0.9 + 0.12
-		if z > 7.3:
-			z = 5.1
+		if z > z_limit:
+			z = head_z
 	c.clear_basket()
 	_update_label()
 
@@ -79,8 +92,6 @@ func scan(it: Node) -> void:
 	_flash = 0.15
 	if game:
 		game.play_sfx("beep")
-		if game.player:
-			game.player.scan_flash()
 	if belt.is_empty() and front():
 		state = R.PAYMENT
 		payment = front().choose_payment(total)
@@ -180,10 +191,17 @@ func get_prompt_for(_body: Node, _player: Node) -> String:
 				return "[E] Run card  $%.2f" % (total / 100.0)
 			return "[E] Open cash drawer  - Total $%.2f, Cash $%.2f" % [total / 100.0, payment.cash / 100.0]
 		R.SCANNING:
-			return "Scan the items on the belt (%d left)" % belt.size()
+			return "[E] Ring up the belt (%d left)" % belt.size()
 	return "Lane %d register" % (index + 1)
 
 func on_interact(_body: Node, _player: Node) -> void:
+	if state == R.SCANNING and not belt.is_empty():
+		if game and game.has_method("has_fast_ring") and game.has_fast_ring():
+			while not belt.is_empty():
+				scan(belt[0])
+		else:
+			scan(belt[0])
+		return
 	if state != R.PAYMENT:
 		return
 	if payment.method == "card":

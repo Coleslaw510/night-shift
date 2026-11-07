@@ -3,20 +3,28 @@ class_name StoreBuilder
 ## Layout (meters, +Z = front/entrance) is documented in HANDOFF.md.
 ## Returns refs: lights, lanes, front_door, back_door, can, dumpster, locker, crates.
 
-const W := 24.0
-const D := 30.0
-const H := 3.6
-const SHELF_X := [-9.5, -6.5, -3.0, 3.0, 6.5, 9.5]
-const SHELF_Z0 := -6.0
-const SHELF_Z1 := 0.5
-const LANE_X := [-2.6, 2.6]          # customer side of each checkout lane
-const COUNTER_X := [-1.6, 1.6]       # counters; cashier stands between them (x ~ 0)
-const DOOR_X := 7.0                  # front automatic door
-const STOCK_DOOR_X := 7.0            # doorway from store into stockroom (back wall)
-const BACK_DOOR_X := 9.7             # stockroom back door to the back lot
-const ZB := -11.0                     # store back wall (inner face); front wall is at +D/2
-const ROOM_Z := -18.0                # stockroom back wall
-const FENCE := Rect2(-26, -33, 52, 64)
+const W := 40.0                        # sales floor x -20..20
+const D := 46.0                        # front wall at z = 23
+const H := 3.8
+const SHELF_X := [-16.0, -12.6, -9.2, -5.8, -2.2, 2.2, 5.8, 9.2, 12.6, 16.0]
+const SHELF_Z0 := -11.0
+const SHELF_Z1 := 6.0
+const AISLE_X := [-18.2, -14.3, -10.9, -7.5, -4.0, 0.0, 4.0, 7.5, 10.9, 14.3, 18.2]
+const FRONT_Z := 8.2                   # cross corridor in front of the shelves
+const BACK_Z := -13.2                  # cross corridor behind the shelves
+const LANE_X := [3.15]                 # the one queue, just right of the center aisle
+const COUNTER_X := [4.7]
+const COUNTER_Z := 14.5
+const QUEUE_HEAD_Z := 13.0
+const QUEUE_MIN_Z := 9.0
+const DOOR_X := 0.0                    # front automatic door, centered
+const STOCK_DOOR_X := -14.3            # doorway into the stockroom (left aisle; the freezer blocks x=0)
+const BACK_DOOR_X := 14.0              # stockroom back door to the back lot
+const ZB := -16.0                      # store back wall (inner face); front wall is at +D/2
+const ROOM_Z := -34.0                  # stockroom back wall (18 m deep, full width)
+const FENCE := Rect2(-42, -48, 84, 96) # lot x -42..42, z -48..48
+const CORRAL_POS := Vector3(-8.0, 0, 28.0)
+const FUEL_POS := Vector3(32.0, 0, 31.0)
 
 static var _mats := {}
 static var _floor_shader: Shader
@@ -136,7 +144,7 @@ static func build(root: Node3D, target: Object) -> Dictionary:
 	_floor_and_ceiling(store)
 	_walls(store, out)
 	_lights(store, out)
-	_freezer(store)
+	_freezer(store, out)
 	_checkouts(store, out, target)
 	_stockroom(store, out, target)
 	_outside(store, out, target)
@@ -149,28 +157,39 @@ static func _environment(root: Node3D) -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.008, 0.01, 0.018)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.5, 0.45, 0.38)
-	env.ambient_light_energy = 0.3
+	env.ambient_light_color = Color(0.78, 0.74, 0.66)
+	env.ambient_light_energy = 0.72
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 1.12
 	env.glow_enabled = true
 	env.glow_intensity = 0.7
 	env.glow_strength = 1.1
 	env.glow_bloom = 0.05
 	env.glow_hdr_threshold = 0.9
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.06, 0.055, 0.05)
-	env.fog_density = 0.02
+	env.fog_light_color = Color(0.14, 0.13, 0.11)
+	env.fog_density = 0.01
 	env.adjustment_enabled = true
 	env.adjustment_contrast = 1.08
 	env.adjustment_saturation = 1.05
 	we.environment = env
 	root.add_child(we)
+	# One cheap fill light for the whole building. Presets must not turn this off;
+	# extra omnis only add detail. Angled so shelf faces catch light, not just the floor.
+	var fill := DirectionalLight3D.new()
+	fill.name = "FillLight"
+	fill.light_color = Color(1.0, 0.93, 0.8)
+	fill.light_energy = 0.62
+	fill.shadow_enabled = false
+	fill.rotation_degrees = Vector3(-58, 28, 0)
+	fill.set_meta("role", "fill")
+	fill.add_to_group("fill_light")
+	root.add_child(fill)
 
 static func _floor_and_ceiling(store: Node3D) -> void:
 	var hw := W * 0.5
 	var hd := D * 0.5
-	var fm := tiled_floor(0.6, Color(0.31, 0.3, 0.28), Color(0.28, 0.27, 0.26), Color(0.18, 0.18, 0.17))
+	var fm := tiled_floor(0.6, Color(0.5, 0.48, 0.44), Color(0.44, 0.42, 0.38), Color(0.32, 0.3, 0.27))
 	# Floor split in 4x5 m tiles so each mesh gets few lights (Compatibility renderer limit).
 	var depth := hd - ZB
 	var zc := (hd + ZB) * 0.5
@@ -181,25 +200,30 @@ static func _floor_and_ceiling(store: Node3D) -> void:
 			box(store, Vector3(4, 0.1, depth / 4.0), Vector3(x + 2, -0.05, z + depth / 8.0), fm)
 			z += depth / 4.0
 		x += 4
-	# Stockroom floor (concrete)
-	var cm := tiled_floor(1.5, Color(0.3, 0.3, 0.29), Color(0.28, 0.28, 0.27), Color(0.18, 0.18, 0.18))
-	box(store, Vector3(10, 0.1, ZB - ROOM_Z), Vector3(7, -0.05, (ZB + ROOM_Z) * 0.5), cm)
+	# Stockroom floor (concrete), full width and much deeper than the sales floor
+	var cm := tiled_floor(1.5, Color(0.26, 0.26, 0.25), Color(0.22, 0.22, 0.21), Color(0.14, 0.14, 0.14))
+	var room_d := ZB - ROOM_Z
+	box(store, Vector3(W, 0.1, room_d), Vector3(0, -0.05, (ZB + ROOM_Z) * 0.5), cm)
 	# Ceiling: dark panels + grid
-	var ceil_m := mat(Color(0.13, 0.13, 0.13), 0.0, 0.95)
-	var grid_m := mat(Color(0.06, 0.06, 0.06))
+	# Sales-floor ceiling reads as a bank of fluorescents even when omnis are off.
+	var ceil_m := mat(Color(0.62, 0.58, 0.5), 0.55, 0.7)
+	var room_ceil := mat(Color(0.2, 0.19, 0.17), 0.12, 0.9)
+	var grid_m := mat(Color(0.1, 0.1, 0.1))
 	box(store, Vector3(W, 0.12, depth), Vector3(0, H + 0.06, zc), ceil_m)
-	box(store, Vector3(10, 0.12, ZB - ROOM_Z), Vector3(7, H + 0.06, (ZB + ROOM_Z) * 0.5), ceil_m)
+	box(store, Vector3(W, 0.12, ZB - ROOM_Z), Vector3(0, H + 0.06, (ZB + ROOM_Z) * 0.5), room_ceil)
+	var grid_xf: Array = []
 	var gx := -hw + 1.2
 	while gx < hw:
-		box(store, Vector3(0.04, 0.03, depth), Vector3(gx, H - 0.01, zc), grid_m)
+		grid_xf.append(Transform3D(Basis.from_scale(Vector3(0.04, 0.03, depth)), Vector3(gx, H - 0.01, zc)))
 		gx += 1.2
 	var gz := ZB + 1.2
 	while gz < hd:
-		box(store, Vector3(W, 0.03, 0.04), Vector3(0, H - 0.01, gz), grid_m)
+		grid_xf.append(Transform3D(Basis.from_scale(Vector3(W, 0.03, 0.04)), Vector3(0, H - 0.01, gz)))
 		gz += 1.2
+	_multibox(store, grid_xf, grid_m)
 	# Roof (seen from outside)
 	box(store, Vector3(W + 0.6, 0.3, depth + 0.6), Vector3(0, H + 0.27, zc), mat(Color(0.12, 0.11, 0.1)))
-	box(store, Vector3(10.6, 0.3, ZB - ROOM_Z + 0.6), Vector3(7, H + 0.27, (ZB + ROOM_Z) * 0.5), mat(Color(0.12, 0.11, 0.1)))
+	box(store, Vector3(W + 0.6, 0.3, ZB - ROOM_Z + 0.6), Vector3(0, H + 0.27, (ZB + ROOM_Z) * 0.5), mat(Color(0.12, 0.11, 0.1)))
 
 static func _wall_seg(store: Node3D, a: Vector3, b: Vector3, m: Material, h := H, y0 := 0.0, thick := 0.2, collide := true) -> void:
 	# Axis-aligned wall from a to b (x or z aligned).
@@ -230,12 +254,20 @@ static func _walls(store: Node3D, out: Dictionary) -> void:
 	while z <= hd + 0.01:
 		box(store, Vector3(0.24, 1.9, 0.14), Vector3(-hw - 0.1, 1.85, z), frame)
 		z += 3.0
-	# Back wall with stockroom doorway (gap STOCK_DOOR_X +- 1.0)
-	_wall_seg(store, Vector3(-hw, 0, ZB - 0.1), Vector3(STOCK_DOOR_X - 1.0, 0, ZB - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X + 1.0, 0, ZB - 0.1), Vector3(hw, 0, ZB - 0.1), wall)
-	_wall_seg(store, Vector3(STOCK_DOOR_X - 1.0, 0, ZB - 0.1), Vector3(STOCK_DOOR_X + 1.0, 0, ZB - 0.1), wall, H - 2.6, 2.6)
-	box(store, Vector3(1.6, 0.25, 0.05), Vector3(STOCK_DOOR_X, 2.9, ZB + 0.02), mat(Color(0.75, 0.1, 0.08), 1.2))
-	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.9, ZB + 0.05), 40, Color(1, 0.95, 0.9))
+	# Back wall. The opening is in the left aisle, clear of the freezer (which sits on x=0).
+	var door_half := 1.05
+	_wall_seg(store, Vector3(-hw, 0, ZB - 0.1), Vector3(STOCK_DOOR_X - door_half, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X + door_half, 0, ZB - 0.1), Vector3(hw, 0, ZB - 0.1), wall)
+	_wall_seg(store, Vector3(STOCK_DOOR_X - door_half, 0, ZB - 0.1), Vector3(STOCK_DOOR_X + door_half, 0, ZB - 0.1), wall, H - 2.35, 2.35)
+	box(store, Vector3(door_half * 2.0 + 0.3, 0.22, 0.08), Vector3(STOCK_DOOR_X, 2.5, ZB - 0.05), mat(Color(0.22, 0.2, 0.16)))
+	# Strip curtain: visible, no collider, so the player and customers walk straight through.
+	var strip := mat(Color(0.45, 0.42, 0.18, 0.55), 0.0, 0.4)
+	var sx := STOCK_DOOR_X - door_half + 0.18
+	while sx < STOCK_DOOR_X + door_half - 0.05:
+		box(store, Vector3(0.1, 2.15, 0.02), Vector3(sx, 1.15, ZB - 0.02), strip)
+		sx += 0.28
+	box(store, Vector3(2.0, 0.22, 0.05), Vector3(STOCK_DOOR_X, 2.85, ZB + 0.04), mat(Color(0.75, 0.1, 0.08), 1.2))
+	label(store, "EMPLOYEES ONLY", Vector3(STOCK_DOOR_X, 2.85, ZB + 0.08), 40, Color(1, 0.95, 0.9))
 	# Front storefront: real glass both sides of the door gap
 	var g0 := DOOR_X - 1.15
 	var g1 := DOOR_X + 1.15
@@ -270,18 +302,17 @@ static func _walls(store: Node3D, out: Dictionary) -> void:
 	for s in [-1, 1]:
 		box(store, Vector3(0.04, 0.12, hd - ZB), Vector3(s * (hw - 0.01), 0.06, (hd + ZB) * 0.5), trim)
 	box(store, Vector3(W, 0.12, 0.04), Vector3(0, 0.06, ZB + 0.01), trim)
-	# Exterior skin on the solid walls + the store sign
+	# Exterior skin on the sales-floor side walls + the store sign (back skin is on the stockroom)
 	box(store, Vector3(0.05, H, hd - ZB + 0.4), Vector3(hw + 0.23, H * 0.5, (hd + ZB) * 0.5), ext)
-	box(store, Vector3(W + 0.4, H, 0.05), Vector3(0, H * 0.5, ZB - 0.23), ext)
-	box(store, Vector3(9, 0.9, 0.2), Vector3(-2, H + 0.75, hd + 0.05), mat(Color(0.1, 0.1, 0.1)))
-	label(store, "NIGHT SHIFT MART", Vector3(-2, H + 0.75, hd + 0.17), 120, Color(1.0, 0.25, 0.2), 0.0, 0.007)
-	label(store, "OPEN 24 HOURS", Vector3(-8.5, 2.6, hd + 0.05), 48, Color(0.3, 1.0, 0.5), 0.0, 0.006)
+	box(store, Vector3(11, 0.9, 0.2), Vector3(-8, H + 0.75, hd + 0.05), mat(Color(0.1, 0.1, 0.1)))
+	label(store, "NIGHT SHIFT MART", Vector3(-8, H + 0.75, hd + 0.17), 120, Color(1.0, 0.25, 0.2), 0.0, 0.007)
+	label(store, "OPEN 24 HOURS", Vector3(8.5, 2.6, hd + 0.05), 48, Color(0.3, 1.0, 0.5), 0.0, 0.006)
 
 static func _lights(store: Node3D, out: Dictionary) -> void:
 	var housing := mat(Color(0.2, 0.2, 0.2), 0.0, 0.5, 0.3)
 	var tube := mat(Color(1.0, 0.96, 0.86), 5.0)
-	for fx in [-6.0, 0.0, 6.0]:
-		for fz in [-8.0, -2.0, 4.0, 10.0]:
+	for fx in [-16.0, -8.0, 0.0, 8.0, 16.0]:
+		for fz in [-12.0, -4.0, 4.0, 12.0, 20.0]:
 			var f := Node3D.new()
 			f.position = Vector3(fx, H - 0.08, fz)
 			store.add_child(f)
@@ -290,32 +321,32 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 				box(f, Vector3(0.12, 0.04, 2.36), Vector3(tx, -0.06, 0), tube)
 			var l := OmniLight3D.new()
 			l.light_color = Color(1.0, 0.9, 0.74)
-			l.light_energy = 1.0
+			l.light_energy = 0.28
 			l.omni_range = 10.5
 			l.omni_attenuation = 1.0
 			l.position = Vector3(fx, H - 0.45, fz)
-			store.add_child(l)
 			l.set_meta("fixture", f)
-			l.set_meta("base", l.light_energy)
-			out.lights.append(l)
+			# Accent only. The floor is lit by ambient, the fill light, and the ceiling.
+			var tier := 2
+			_add_light(store, out, l, tier, l.omni_range)
 
-static func _freezer(store: Node3D) -> void:
+static func _freezer(store: Node3D, out: Dictionary) -> void:
 	var z := ZB + 0.6
 	var body := mat(Color(0.22, 0.22, 0.24), 0.0, 0.5, 0.4)
 	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
 	var glass := mat(Color(0.7, 0.88, 1.0, 0.2), 0.3, 0.05)
 	var frame := mat(Color(0.75, 0.78, 0.8), 0.0, 0.3, 0.7)
-	box(store, Vector3(8.4, 2.5, 1.2), Vector3(0, 1.25, z), body)
-	add_collider(store, Vector3(8.4, 2.5, 1.3), Vector3(0, 1.25, z))
-	box(store, Vector3(8.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.1), glow)
-	box(store, Vector3(8.0, 0.06, 0.5), Vector3(0, 2.28, z + 0.2), mat(Color(0.9, 0.97, 1.0), 4.0))  # top light strip   # glowing back
+	box(store, Vector3(12.4, 2.5, 1.2), Vector3(0, 1.25, z), body)
+	add_collider(store, Vector3(12.4, 2.5, 1.3), Vector3(0, 1.25, z))
+	box(store, Vector3(12.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.1), glow)
+	box(store, Vector3(12.0, 0.06, 0.5), Vector3(0, 2.28, z + 0.2), mat(Color(0.9, 0.97, 1.0), 4.0))  # top light strip   # glowing back
 	# shelves + frozen goods inside
 	var xf: Array = []
 	var cols: Array = []
 	for lv in [0.35, 0.8, 1.25, 1.7]:
-		box(store, Vector3(8.0, 0.02, 0.5), Vector3(0, lv, z + 0.2), mat(Color(0.85, 0.9, 0.95), 0.4))
-		var x := -3.85
-		while x < 3.85:
+		box(store, Vector3(12.0, 0.02, 0.5), Vector3(0, lv, z + 0.2), mat(Color(0.85, 0.9, 0.95), 0.4))
+		var x := -5.85
+		while x < 5.85:
 			var p: Dictionary = Products.CATALOG[Products.FROZEN_ITEMS[randi() % Products.FROZEN_ITEMS.size()]]
 			var s: Vector3 = p.size
 			xf.append(Transform3D(Basis.from_scale(Vector3(s.x, s.y, 0.3)), Vector3(x + s.x * 0.5, lv + 0.01 + s.y * 0.5, z + 0.2)))
@@ -323,22 +354,22 @@ static func _freezer(store: Node3D) -> void:
 			x += s.x + 0.04
 	_multimesh(store, xf, cols, 0.3)
 	# glass doors with chrome frames
-	for i in 5:
-		var dx := -3.2 + i * 1.6
+	for i in 7:
+		var dx := -4.8 + i * 1.6
 		box(store, Vector3(1.55, 2.2, 0.03), Vector3(dx, 1.2, z + 0.62), glass)
 		box(store, Vector3(1.6, 0.06, 0.06), Vector3(dx, 0.1, z + 0.63), frame)
 		box(store, Vector3(1.6, 0.06, 0.06), Vector3(dx, 2.3, z + 0.63), frame)
 		box(store, Vector3(0.05, 2.25, 0.06), Vector3(dx - 0.78, 1.2, z + 0.63), frame)
 		box(store, Vector3(0.03, 0.7, 0.05), Vector3(dx + 0.65, 1.3, z + 0.68), frame)
-	box(store, Vector3(8.4, 0.5, 1.2), Vector3(0, 2.75, z), body)
+	box(store, Vector3(12.4, 0.5, 1.2), Vector3(0, 2.75, z), body)
 	var fl := OmniLight3D.new()
 	fl.light_color = Color(0.6, 0.85, 1.0)
 	fl.light_energy = 1.4
 	fl.omni_range = 6.5
 	fl.position = Vector3(0, 1.3, z + 1.4)
-	store.add_child(fl)
+	_add_light(store, out, fl, 0, fl.omni_range)
 	# "FREEZER AISLE ->" sign (dark plate, light text)
-	box(store, Vector3(4.6, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
+	box(store, Vector3(6.2, 0.62, 0.06), Vector3(0, 3.12, z + 0.4), mat(Color(0.12, 0.13, 0.15), 0.0, 0.6))
 	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
 
 static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) -> MultiMeshInstance3D:
@@ -366,6 +397,30 @@ static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) ->
 	parent.add_child(mmi)
 	return mmi
 
+static func _multibox(parent: Node, xf: Array, material: Material) -> void:
+	if xf.is_empty():
+		return
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE
+	mm.mesh = bm
+	mm.instance_count = xf.size()
+	for i in xf.size():
+		mm.set_instance_transform(i, xf[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = material
+	parent.add_child(mmi)
+
+static func _add_light(store: Node, out: Dictionary, light: Light3D, tier: int, base_range: float) -> void:
+	light.shadow_enabled = false
+	light.set_meta("tier", tier)
+	light.set_meta("base", light.light_energy)
+	light.set_meta("base_range", base_range)
+	store.add_child(light)
+	out.lights.append(light)
+
 static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 	var beige := mat(Color(0.66, 0.62, 0.54), 0.0, 0.7)
 	var beige_d := mat(Color(0.5, 0.47, 0.41), 0.0, 0.7)
@@ -380,21 +435,21 @@ static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 		var root := Node3D.new()
 		root.name = "Lane%d" % (i + 1)
 		store.add_child(root)
-		box(root, Vector3(1.0, 0.86, 4.2), Vector3(cx, 0.43, 7.0), counter_m, true)
-		box(root, Vector3(1.06, 0.05, 4.26), Vector3(cx, 0.885, 7.0), steel)
-		box(root, Vector3(1.06, 0.12, 0.08), Vector3(cx, 0.93, 4.92), steel)
-		box(root, Vector3(0.8, 0.03, 2.8), Vector3(cx, 0.92, 6.15), belt_m)
+		box(root, Vector3(1.0, 0.86, 5.0), Vector3(cx, 0.43, COUNTER_Z), counter_m, true)
+		box(root, Vector3(1.06, 0.05, 5.06), Vector3(cx, 0.885, COUNTER_Z), steel)
+		box(root, Vector3(1.06, 0.12, 0.08), Vector3(cx, 0.93, COUNTER_Z - 2.45), steel)
+		box(root, Vector3(0.8, 0.03, 3.2), Vector3(cx, 0.92, COUNTER_Z - 0.7), belt_m)
 		for sx in [-0.43, 0.43]:
-			box(root, Vector3(0.06, 0.06, 2.9), Vector3(cx + sx, 0.94, 6.15), steel)
+			box(root, Vector3(0.06, 0.06, 3.3), Vector3(cx + sx, 0.94, COUNTER_Z - 0.7), steel)
 		# belt slats for texture
-		var bz := 4.85
-		while bz < 7.5:
+		var bz := COUNTER_Z - 2.2
+		while bz < COUNTER_Z + 1.0:
 			box(root, Vector3(0.78, 0.005, 0.02), Vector3(cx, 0.937, bz), mat(Color(0.12, 0.12, 0.13)))
 			bz += 0.12
-		# scanner glass
-		box(root, Vector3(0.5, 0.02, 0.36), Vector3(cx, 0.92, 7.9), mat(Color(0.3, 0.05, 0.05), 1.0))
+		# scanner glass (built into the counter — the hand scanner is gone)
+		box(root, Vector3(0.5, 0.02, 0.36), Vector3(cx, 0.92, COUNTER_Z + 0.85), mat(Color(0.3, 0.05, 0.05), 1.0))
 		# Beige boxy register near the cashier end: base, keypad, CRT monitor facing cashier
-		var rz := 8.5
+		var rz := COUNTER_Z + 1.55
 		box(root, Vector3(0.62, 0.22, 0.5), Vector3(cx, 1.02, rz), beige)            # cash drawer
 		box(root, Vector3(0.5, 0.1, 0.42), Vector3(cx + face * 0.02, 1.17, rz), beige_d)
 		var kp := box(root, Vector3(0.3, 0.05, 0.3), Vector3(cx + face * 0.12, 1.24, rz), mat(Color(0.2, 0.2, 0.22)))
@@ -409,12 +464,12 @@ static func _checkouts(store: Node3D, out: Dictionary, target: Object) -> void:
 		var lab := label(mon, "", Vector3(face * 0.193, 0, 0), 32, Color(0.55, 1.0, 0.55), face * PI * 0.5, 0.0016)
 		box(root, Vector3(0.06, 0.04, 0.04), Vector3(cx + face * 0.3, 1.1, rz + 0.18), mat(Color(0.1, 1.0, 0.3), 3.0))
 		# bagging area + lane pole
-		box(root, Vector3(0.9, 0.05, 0.6), Vector3(cx, 0.9, 9.45), steel)
-		var lnum := label(root, "LANE %d" % (i + 1), Vector3(cx, 0.7, 9.12), 28, Color(0.7, 0.7, 0.65), 0.0, 0.0025)
+		box(root, Vector3(0.9, 0.05, 0.6), Vector3(cx, 0.9, COUNTER_Z + 2.55), steel)
+		var lnum := label(root, "LANE %d" % (i + 1), Vector3(cx, 0.7, COUNTER_Z + 2.2), 28, Color(0.7, 0.7, 0.65), 0.0, 0.0025)
 		lnum.modulate.a = 0.8
 		# interact collider around register (target = register script, set by game)
 		var it := Interact.make(root, Vector3(0.7, 0.75, 0.6), Vector3(cx, 1.35, rz), null, {"kind": "register", "lane": i})
-		out.lanes.append({"index": i, "lane_x": lx, "counter_x": cx, "cash_x": cash_x, "face": face, "root": root, "label": lab, "screen": scr, "terminal": it})
+		out.lanes.append({"index": i, "lane_x": lx, "counter_x": cx, "cash_x": cash_x, "face": face, "root": root, "label": lab, "screen": scr, "terminal": it, "head_z": QUEUE_HEAD_Z, "queue_min_z": QUEUE_MIN_Z})
 
 static func _crate(parent: Node, pos: Vector3, p: Dictionary, rot := 0.0) -> Node3D:
 	var n := Node3D.new()
@@ -427,44 +482,72 @@ static func _crate(parent: Node, pos: Vector3, p: Dictionary, rot := 0.0) -> Nod
 	label(n, String(p.name).to_upper(), Vector3(0, 0.24, 0.236), 24, Products.label_color(p), 0.0, 0.0018)
 	return n
 
+static func _down_spot(store: Node3D, out: Dictionary, pos: Vector3, energy: float, rng: float) -> void:
+	var sl := SpotLight3D.new()
+	sl.light_color = Color(1.0, 0.82, 0.55)
+	sl.light_energy = energy
+	sl.spot_range = rng
+	sl.spot_angle = 38.0
+	sl.position = pos
+	sl.rotation.x = -PI * 0.5
+	_add_light(store, out, sl, 0, rng)
+	box(store, Vector3(0.4, 0.08, 0.4), pos + Vector3(0, 0.1, 0), mat(Color(1.0, 0.85, 0.6), 2.5))
+
 static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
-	var wall := mat(Color(0.33, 0.33, 0.31), 0.0, 0.95)
-	var x0 := 2.0
-	var x1 := W * 0.5
-	var hd := D * 0.5
-	_wall_seg(store, Vector3(x0, 0, ZB), Vector3(x0, 0, ROOM_Z), wall)
-	_wall_seg(store, Vector3(x1 + 0.1, 0, ZB), Vector3(x1 + 0.1, 0, ROOM_Z), wall)
-	_wall_seg(store, Vector3(x0, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X - 0.65, 0, ROOM_Z - 0.1), wall)
-	_wall_seg(store, Vector3(BACK_DOOR_X + 0.65, 0, ROOM_Z - 0.1), Vector3(x1, 0, ROOM_Z - 0.1), wall)
-	_wall_seg(store, Vector3(BACK_DOOR_X - 0.65, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X + 0.65, 0, ROOM_Z - 0.1), wall, H - 2.4, 2.4)
-	# bare bulb light
-	var l := OmniLight3D.new()
-	l.light_color = Color(1.0, 0.82, 0.55)
-	l.light_energy = 1.0
-	l.omni_range = 8.0
-	l.position = Vector3(7, H - 0.6, (ZB + ROOM_Z) * 0.5)
-	store.add_child(l)
-	box(store, Vector3(0.15, 0.15, 0.15), Vector3(7, H - 0.4, (ZB + ROOM_Z) * 0.5), mat(Color(1.0, 0.85, 0.6), 4.0))
-	# Pallet rack along the back wall: one stock crate per shelf product (2 levels)
+	var wall := mat(Color(0.28, 0.28, 0.27), 0.0, 0.95)
+	var ext := mat(Color(0.3, 0.22, 0.18), 0.0, 0.95)
+	var hw := W * 0.5
+	# Full-width stockroom. Only the middle is lit; the far corners stay dark.
+	_wall_seg(store, Vector3(-hw - 0.1, 0, ZB), Vector3(-hw - 0.1, 0, ROOM_Z), wall)
+	_wall_seg(store, Vector3(hw + 0.1, 0, ZB), Vector3(hw + 0.1, 0, ROOM_Z), wall)
+	_wall_seg(store, Vector3(-hw, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X - 0.7, 0, ROOM_Z - 0.1), wall)
+	_wall_seg(store, Vector3(BACK_DOOR_X + 0.7, 0, ROOM_Z - 0.1), Vector3(hw, 0, ROOM_Z - 0.1), wall)
+	_wall_seg(store, Vector3(BACK_DOOR_X - 0.7, 0, ROOM_Z - 0.1), Vector3(BACK_DOOR_X + 0.7, 0, ROOM_Z - 0.1), wall, H - 2.4, 2.4)
+	box(store, Vector3(0.08, H, ZB - ROOM_Z), Vector3(-hw - 0.2, H * 0.5, (ZB + ROOM_Z) * 0.5), ext)
+	box(store, Vector3(0.08, H, ZB - ROOM_Z), Vector3(hw + 0.2, H * 0.5, (ZB + ROOM_Z) * 0.5), ext)
+	box(store, Vector3(W + 0.5, H, 0.08), Vector3(0, H * 0.5, ROOM_Z - 0.22), ext)
+	# Two pools of light down the middle. Corners get none.
+	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 4.0, 11.0)
+	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 2.4, 9.0)
+	for pil in [Vector3(-12, -23, 0), Vector3(12, -23, 0), Vector3(-12, -30, 0), Vector3(12, -30, 0)]:
+		box(store, Vector3(0.45, H, 0.45), Vector3(pil.x, H * 0.5, pil.y), mat(Color(0.35, 0.34, 0.32)), true)
+	# Pallet rack just inside the employee door: one crate per shelf product
 	var steel := mat(Color(0.2, 0.35, 0.6), 0.0, 0.5, 0.4)
 	var orange := mat(Color(0.85, 0.45, 0.1), 0.0, 0.5, 0.4)
 	var items: Array = Products.SHELF_ITEMS
 	var per_level := int(ceil(items.size() / 2.0))
-	var rack_x0 := 2.6
-	var rack_w := 6.0
+	var rack_x0 := -6.0
+	var rack_w := 12.0
+	var rack_z := -19.2
 	for lv in [0.0, 1.1]:
-		box(store, Vector3(rack_w, 0.06, 0.8), Vector3(rack_x0 + rack_w * 0.5, lv + 0.12, ROOM_Z + 0.55), orange)
-	for k in 4:
-		box(store, Vector3(0.08, 2.2, 0.8), Vector3(rack_x0 + k * rack_w / 3.0, 1.1, ROOM_Z + 0.55), steel)
+		box(store, Vector3(rack_w, 0.06, 0.8), Vector3(rack_x0 + rack_w * 0.5, lv + 0.12, rack_z), orange)
+	for k in 5:
+		box(store, Vector3(0.08, 2.2, 0.8), Vector3(rack_x0 + k * rack_w / 4.0, 1.1, rack_z), steel)
 	for j in items.size():
 		var lv := 0 if j < per_level else 1
 		var col := j % per_level
 		var p: Dictionary = Products.CATALOG[items[j]]
-		var pos := Vector3(rack_x0 + 0.45 + col * (rack_w - 0.9) / maxf(1, per_level - 1), 0.15 + lv * 1.1, ROOM_Z + 0.5)
+		var pos := Vector3(rack_x0 + 0.7 + col * (rack_w - 1.4) / maxf(1, per_level - 1), 0.15 + lv * 1.1, rack_z)
 		_crate(store, pos, p)
 		var it := Interact.make(store, Vector3(0.62, 0.45, 0.5), pos + Vector3(0, 0.21, 0), target, {"kind": "crate", "product": items[j]})
 		out.crates.append(it)
-	label(store, "STOCK - grab a box (E)", Vector3(rack_x0 + rack_w * 0.5, 2.5, ROOM_Z + 0.06), 40, Color(1, 0.9, 0.6))
+	label(store, "STOCK - grab a box (E)", Vector3(0, 2.55, rack_z + 0.5), 48, Color(1, 0.9, 0.6))
+	# Empty racks in the dark corners (somewhere for a monster to stand later)
+	for corner in [Vector3(-16.5, 0, -31.5), Vector3(16.5, 0, -31.0)]:
+		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 1.3, 0), orange)
+		box(store, Vector3(3.2, 0.08, 0.9), corner + Vector3(0, 0.3, 0), orange)
+		for ux in [-1.5, 1.5]:
+			box(store, Vector3(0.08, 2.4, 0.9), corner + Vector3(ux, 1.2, 0), steel)
+	# Back-office desk (the shop terminal gets wired to this collider)
+	var desk := Vector3(-4.6, 0, ZB - 1.8)
+	box(store, Vector3(1.5, 0.08, 0.7), desk + Vector3(0, 0.78, 0), mat(Color(0.35, 0.28, 0.2)))
+	for leg in [Vector3(-0.65, 0, -0.25), Vector3(0.65, 0, -0.25), Vector3(-0.65, 0, 0.25), Vector3(0.65, 0, 0.25)]:
+		box(store, Vector3(0.08, 0.78, 0.08), desk + leg + Vector3(0, 0.39, 0), mat(Color(0.2, 0.2, 0.2)))
+	box(store, Vector3(0.42, 0.32, 0.06), desk + Vector3(0, 1.15, -0.2), mat(Color(0.08, 0.12, 0.1)))
+	box(store, Vector3(0.36, 0.24, 0.02), desk + Vector3(0, 1.15, -0.16), mat(Color(0.25, 0.85, 0.45), 1.6))
+	add_collider(store, Vector3(1.5, 0.8, 0.7), desk + Vector3(0, 0.4, 0))
+	out.terminal = Interact.make(store, Vector3(0.5, 0.4, 0.3), desk + Vector3(0, 1.15, -0.15), target, {"kind": "terminal"})
+	label(store, "BACK OFFICE", Vector3(desk.x, 1.7, desk.z + 0.4), 36, Color(0.7, 1, 0.75))
 	# Swinging back door (hinge on -X side), toggled with E
 	var hinge := Node3D.new()
 	hinge.position = Vector3(BACK_DOOR_X - 0.6, 0, ROOM_Z - 0.1)
@@ -485,10 +568,10 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 		wl.light_energy = 2.2
 		wl.omni_range = 9.0
 		wl.position = wp + Vector3(0, -0.3, -0.5 if wp.z < 0 else 0.5)
-		store.add_child(wl)
+		_add_light(store, out, wl, 1, wl.omni_range)
 	# Gun locker on the stockroom's west wall (placeholder for the monster update)
 	var lk := Node3D.new()
-	lk.position = Vector3(x0 + 0.3, 0, ZB - 2.3)
+	lk.position = Vector3(-hw + 0.45, 0, -30.5)
 	store.add_child(lk)
 	var green := mat(Color(0.18, 0.26, 0.2), 0.0, 0.5, 0.5)
 	box(lk, Vector3(0.45, 1.7, 0.9), Vector3(0, 1.05, 0), green)
@@ -506,7 +589,7 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	label(lk, "EMERGENCY ONLY", Vector3(0.255, 2.05, 0), 36, Color(1, 0.95, 0.9), PI * 0.5, 0.003)
 	out.locker = Interact.make(lk, Vector3(0.5, 1.8, 0.95), Vector3(0.05, 1.05, 0), target, {"kind": "locker"})
 	# Cardboard clutter in the stockroom
-	for c in [Vector3(11.3, 0, ZB - 1.0), Vector3(11.3, 0.42, ZB - 1.1), Vector3(10.6, 0, ZB - 1.2), Vector3(11.2, 0, ROOM_Z + 1.2)]:
+	for c in [Vector3(17.5, 0, -18.5), Vector3(17.6, 0.42, -18.2), Vector3(-17.4, 0, -18.4), Vector3(17.2, 0, -32.4)]:
 		_clutter_box(store, c, Vector3(0.7, 0.42, 0.55))
 
 static func _clutter_box(parent: Node, pos: Vector3, s: Vector3, rot := 0.0) -> void:
@@ -528,15 +611,19 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 	add_collider(store, Vector3(f.size.x + 4, 0.2, f.size.y + 4), Vector3(cx, -0.1, cz))
 	# sidewalk
 	box(store, Vector3(W + 2, 0.12, 2.5), Vector3(0, -0.02, D * 0.5 + 1.35), mat(Color(0.32, 0.31, 0.3), 0.0, 0.9))
-	# parking lines
+	# Two parking rows in front of the store. Cars face the entrance (yaw PI, nose toward -Z).
 	var line := mat(Color(0.7, 0.68, 0.55), 0.0, 0.8)
-	for i in 9:
-		box(store, Vector3(0.1, 0.01, 4.5), Vector3(-10 + i * 3.0, -0.015, 22.5), line)
-	# blocky cars
-	_car(store, Vector3(-5.5, 0, 22.5), Color(0.5, 0.08, 0.08))
-	_car(store, Vector3(3.5, 0, 22.5), Color(0.18, 0.25, 0.35))
-	# street lamps (warm sodium)
-	for lp in [Vector3(-8, 0, 25.5), Vector3(13, 0, 25.5), Vector3(3, 0, -27), Vector3(-18, 0, 5)]:
+	out.parking = []
+	var spot_x := [-18.0, -13.0, -8.0, 8.0, 13.0, 18.0]
+	for row_z in [32.0, 39.5]:
+		var xs: Array = spot_x if row_z < 36.0 else [-18.0, -8.0, 10.0, 18.0]
+		for x in xs:
+			box(store, Vector3(0.1, 0.01, 4.6), Vector3(x, -0.015, row_z), line)
+			out.parking.append({"pos": Vector3(x, 0, row_z), "yaw": PI})
+	_fuel_station(store, out)
+	_corral(store, out)
+	# street lamps — none in the fuel bay, so that corner stays dark except the pumps
+	for lp in [Vector3(-16, 0, 30), Vector3(6, 0, 36), Vector3(-20, 0, -40), Vector3(6, 0, -42), Vector3(-30, 0, 10)]:
 		box(store, Vector3(0.18, 6.0, 0.18), lp + Vector3(0, 3, 0), mat(Color(0.18, 0.18, 0.18)))
 		box(store, Vector3(1.0, 0.18, 0.45), lp + Vector3(0, 6.0, 0), mat(Color(1.0, 0.65, 0.3), 4.0))
 		add_collider(store, Vector3(0.2, 6, 0.2), lp + Vector3(0, 3, 0))
@@ -546,12 +633,15 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		sl.light_energy = 4.0
 		sl.omni_attenuation = 1.3
 		sl.position = lp + Vector3(0, 5.6, 0)
-		store.add_child(sl)
+		_add_light(store, out, sl, 0, sl.omni_range)
 	# chain-link fence around the lot
 	var post_m := mat(Color(0.35, 0.36, 0.37), 0.0, 0.4, 0.7)
 	var mesh_m := mat(Color(0.5, 0.52, 0.55, 0.28), 0.0, 0.5, 0.3)
 	var fh := 2.2
-	for side in [[Vector2(f.position.x, f.position.y), Vector2(f.end.x, f.position.y)], [Vector2(f.position.x, f.end.y), Vector2(f.end.x, f.end.y)], [Vector2(f.position.x, f.position.y), Vector2(f.position.x, f.end.y)], [Vector2(f.end.x, f.position.y), Vector2(f.end.x, f.end.y)]]:
+	var post_xf: Array = []
+	# Front fence (+Z) has a driveway gap at x -5..5.
+	var front_y: float = f.end.y
+	for side in [[Vector2(f.position.x, f.position.y), Vector2(f.end.x, f.position.y)], [Vector2(f.position.x, front_y), Vector2(-5, front_y)], [Vector2(5, front_y), Vector2(f.end.x, front_y)], [Vector2(f.position.x, f.position.y), Vector2(f.position.x, f.end.y)], [Vector2(f.end.x, f.position.y), Vector2(f.end.x, f.end.y)]]:
 		var a: Vector2 = side[0]
 		var b: Vector2 = side[1]
 		var along_x := absf(b.x - a.x) > 0.1
@@ -563,9 +653,10 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		add_collider(store, Vector3(maxf(size.x, 0.3), 3.0, maxf(size.z, 0.3)), Vector3(c.x, 1.5, c.y))
 		var t := 0.0
 		while t <= length + 0.01:
-			var p := a.lerp(b, t / length)
-			box(store, Vector3(0.07, fh + 0.1, 0.07), Vector3(p.x, (fh + 0.1) * 0.5, p.y), post_m)
+			var p: Vector2 = a.lerp(b, t / length)
+			post_xf.append(Transform3D(Basis.from_scale(Vector3(0.07, fh + 0.1, 0.07)), Vector3(p.x, (fh + 0.1) * 0.5, p.y)))
 			t += 3.0
+	_multibox(store, post_xf, post_m)
 	# Dumpster in the back lot
 	var dpos := Vector3(BACK_DOOR_X - 3.0, 0, ROOM_Z - 4.5)
 	var dg := mat(Color(0.12, 0.3, 0.18), 0.0, 0.7, 0.3)
@@ -584,9 +675,56 @@ static func _outside(store: Node3D, out: Dictionary, target: Object) -> void:
 		var bm := box(dn, Vector3(0.45, 0.5, 0.4), bag + Vector3(0, 0.25, 0), mat(Color(0.05, 0.05, 0.06), 0.0, 0.3))
 		bm.rotation.y = 0.5
 
-static func _car(parent: Node, pos: Vector3, c: Color) -> void:
+static func _fuel_station(store: Node3D, out: Dictionary) -> void:
+	# Dark corner of the lot. The only real light is on the pumps.
+	var pad := mat(Color(0.1, 0.1, 0.11), 0.0, 0.9)
+	box(store, Vector3(14, 0.04, 16), FUEL_POS + Vector3(0, 0.02, 0), pad)
+	var canopy := mat(Color(0.15, 0.16, 0.18), 0.0, 0.6)
+	box(store, Vector3(10, 0.18, 7), FUEL_POS + Vector3(0, 3.3, 0), canopy)
+	for col in [Vector3(-4.2, 0, -2.8), Vector3(4.2, 0, -2.8), Vector3(-4.2, 0, 2.8), Vector3(4.2, 0, 2.8)]:
+		box(store, Vector3(0.28, 3.3, 0.28), FUEL_POS + col + Vector3(0, 1.65, 0), mat(Color(0.2, 0.2, 0.22)), true)
+	out.pumps = []
+	for i in 2:
+		var p := FUEL_POS + Vector3(-1.6 + i * 3.2, 0, 0)
+		var pump := Node3D.new()
+		pump.position = p
+		store.add_child(pump)
+		box(pump, Vector3(0.55, 1.5, 0.35), Vector3(0, 0.75, 0), mat(Color(0.75, 0.12, 0.1)), true)
+		box(pump, Vector3(0.35, 0.2, 0.05), Vector3(0, 1.15, 0.18), mat(Color(0.05, 0.05, 0.05)))
+		box(pump, Vector3(0.28, 0.12, 0.02), Vector3(0, 1.15, 0.21), mat(Color(0.2, 1.0, 0.45), 2.2))
+		box(pump, Vector3(0.7, 0.06, 0.7), Vector3(0, 3.05, 0), mat(Color(1.0, 0.85, 0.45), 3.5))
+		var pl := OmniLight3D.new()
+		pl.light_color = Color(1.0, 0.8, 0.4)
+		pl.light_energy = 2.4
+		pl.omni_range = 6.5
+		pl.position = Vector3(0, 2.7, 0)
+		_add_light(pump, out, pl, 0, pl.omni_range)
+		label(pump, "FUEL", Vector3(0, 1.7, 0.2), 42, Color(1, 0.95, 0.8))
+		out.pumps.append({"pos": p, "yaw": PI * 0.5, "index": i})
+	label(store, "NIGHT FUEL", FUEL_POS + Vector3(0, 3.7, 3.6), 64, Color(1.0, 0.85, 0.3))
+
+static func _corral(store: Node3D, out: Dictionary) -> void:
+	var rail := mat(Color(0.62, 0.64, 0.66), 0.0, 0.35, 0.6)
+	var origin := CORRAL_POS
+	# A 4.2 x 7 m pen, open on the store side (+Z is open? store is -Z from here).
+	# Open toward the store (-Z) so carts roll in from the lot.
+	for end_x in [-2.1, 2.1]:
+		box(store, Vector3(0.08, 1.0, 7.0), origin + Vector3(end_x, 0.5, 0), rail)
+	box(store, Vector3(4.2, 1.0, 0.08), origin + Vector3(0, 0.5, -3.5), rail)
+	for post in [Vector3(-2.1, 0, -3.5), Vector3(2.1, 0, -3.5), Vector3(-2.1, 0, 3.5), Vector3(2.1, 0, 3.5)]:
+		box(store, Vector3(0.1, 1.15, 0.1), origin + post + Vector3(0, 0.55, 0), rail)
+	label(store, "CARTS", origin + Vector3(0, 1.35, -3.5), 48, Color(0.9, 0.95, 1))
+	var slots: Array = []
+	for i in 8:
+		var col := i % 2
+		var row := int(i / 2)
+		slots.append(origin + Vector3(-0.7 + col * 1.4, 0, -2.2 + row * 1.5))
+	out.corral = {"pos": origin, "slots": slots, "half": Vector3(2.3, 1.0, 3.7)}
+
+static func _car(parent: Node, pos: Vector3, c: Color, yaw := 0.0) -> void:
 	var n := Node3D.new()
 	n.position = pos
+	n.rotation.y = yaw
 	parent.add_child(n)
 	var paint := mat(c, 0.0, 0.35, 0.5)
 	box(n, Vector3(1.8, 0.7, 4.2), Vector3(0, 0.6, 0), paint)
@@ -601,7 +739,7 @@ static func _car(parent: Node, pos: Vector3, c: Color) -> void:
 
 static func _props(store: Node3D, out: Dictionary, target: Object) -> void:
 	# Trash can behind the checkout lanes (fills up over time)
-	var cpos := Vector3(-4.6, 0, 12.6)
+	var cpos := Vector3(8.6, 0, 19.2)
 	var can := Node3D.new()
 	can.position = cpos
 	store.add_child(can)
@@ -610,15 +748,14 @@ static func _props(store: Node3D, out: Dictionary, target: Object) -> void:
 	box(can, Vector3(0.3, 0.003, 0.15), Vector3(0, 0.6, 0.3), mat(Color(0.2, 0.4, 0.8)))
 	out.can = {"node": can, "bag": bag, "body": Interact.make(can, Vector3(0.65, 1.0, 0.65), Vector3(0, 0.5, 0), target, {"kind": "can"})}
 	# Cardboard clutter in the store (out of customer paths)
-	_clutter_box(store, Vector3(-11.3, 0, 13.6), Vector3(0.8, 0.5, 0.6), 0.2)
-	_clutter_box(store, Vector3(-11.4, 0.5, 13.5), Vector3(0.6, 0.4, 0.5), -0.3)
-	_clutter_box(store, Vector3(-10.9, 0, 12.6), Vector3(0.55, 0.38, 0.5), 0.6)
-	_clutter_box(store, Vector3(10.2, 0, ZB + 1.0), Vector3(0.8, 0.5, 0.6), 0.1)
-	_clutter_box(store, Vector3(11.2, 0, ZB + 1.4), Vector3(0.6, 0.6, 0.6), -0.2)
-	_clutter_box(store, Vector3(-6.0, 0, ZB + 0.8), Vector3(0.7, 0.45, 0.55), 0.15)
+	_clutter_box(store, Vector3(-19.2, 0, 21.2), Vector3(0.8, 0.5, 0.6), 0.2)
+	_clutter_box(store, Vector3(-19.0, 0.5, 20.9), Vector3(0.6, 0.4, 0.5), -0.3)
+	_clutter_box(store, Vector3(19.1, 0, 21.0), Vector3(0.55, 0.38, 0.5), 0.6)
+	_clutter_box(store, Vector3(19.0, 0, ZB + 1.2), Vector3(0.8, 0.5, 0.6), 0.1)
+	_clutter_box(store, Vector3(-19.1, 0, ZB + 1.3), Vector3(0.6, 0.6, 0.6), -0.2)
 	# Wet floor sign
 	var ws := Node3D.new()
-	ws.position = Vector3(11.3, 0, 12.5)
+	ws.position = Vector3(18.4, 0, 20.2)
 	ws.rotation.y = 0.6
 	store.add_child(ws)
 	for s in [-1, 1]:

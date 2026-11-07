@@ -21,7 +21,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
   not notarized). Artifacts: `NightShift-Windows`, `NightShift-Mac`.
 
 ## Build / run
-- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.1.1-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+.
+- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.2.2-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 6.
 - Open the folder in Godot 4.4.1 and press F5. Main scene: `scenes/menu.tscn`.
 - Smoke test: `godot --headless --import && godot --headless --script res://tests/smoke_test.gd`
   (fails CI on any `SCRIPT ERROR` line or non-zero exit).
@@ -40,7 +40,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - `scripts/store_builder.gd`: all geometry and lights for the store, stockroom, outside lot, fence, dumpster, cars and gun locker. Also holds the floor shader and the material cache.
 - `scripts/shelves.gd` (`ShelfSystem`): shelf frames and stock slots (6 rows x 2 faces x 4 levels x 8 slots). Products are drawn with 2 MultiMeshes (boxes + labels). `take()` for customers, `place()` for the player, low-stock queries.
 - `scripts/interact.gd` (`Interact`): generic collider that forwards `interact`/`get_prompt`/`hold_interact` to a target, with a `tag`.
-- `scripts/player.gd`: first-person controller, scanner viewmodel, carrying (stock box / trash bag), hold-to-use.
+- `scripts/player.gd`: first-person controller, empty-hand viewmodel, carrying (stock box / trash bag / cart), hold-to-use. `scripts/dropped_item.gd` is a box or bag left on the floor. `scripts/cart.gd` is a shopping cart. `scripts/vehicle.gd` is a lot car (park or fuel).
 - `scripts/customer.gd`: low-poly person with hoodies/tees, hair styles, a simple face and a red basket. Runs the waypoint AI, waits for the player and other customers, gets annoyed when items are out of stock, and picks cash or card.
 - `scripts/register.gd`: checkout lane with the queue, belt items, scanning, and payment (card tap, or cash with change counted in the HUD drawer). Money is in cents.
 - `scripts/belt_item.gd`: scannable product on the belt.
@@ -51,19 +51,44 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - `tests/smoke_test.gd`: headless test that also self-tests change math, stocking, the trash loop and the locker. `tests/screenshot.gd` renders the doc shots.
 - `docs/concept/`: approved concept art. `docs/screenshot_*.png`: in-game renders.
 
-## World layout (meters, +Z = front/entrance)
-- Store interior x -12..12, z -11 (back wall, `ZB`) .. 15 (glass storefront). Ceiling at 3.6.
-- Shelf rows at x = -9.5, -6.5, -3, 3, 6.5, 9.5, spanning z -6..0.5, with a wide center aisle (x -2.4..2.4) that looks straight at the freezer.
-- Customer aisles (x): -11, -8, -4.75, 0 (center, stands at ±1.7), 4.75, 8, 11. Cross corridors run at z = 3 (front) and z = -7.4 (back).
-- Freezer: glass-door case on the back wall, x -4.2..4.2, with the "FREEZER AISLE ->" sign above it.
-- Checkouts: counters at x ±1.6 over z 4.9..9.1, with the registers at the z 8.5 end. Customers queue at x ±2.6. The cashier stands between the counters (x ~0).
-- Front automatic sliding door at x = 7 (z = 15). Glass storefront plus a left-wall window band.
-- Stockroom: x 2..12, z -11..-18, reached through a doorway at x = 7 in the back wall ("EMPLOYEES ONLY"). It has a stock rack with one crate per shelf product, the gun locker on its west wall, and a swinging back door at x = 9.7 (z = -18) that opens to the back lot.
-- Outside: asphalt lot fenced at x -26..26, z -33..31, with street lamps, wall lamps, 2 parked cars and the dumpster behind the stockroom.
-- Trash can behind lane 1 at (-4.6, 12.6).
+## World layout (meters, +Z = front/entrance) — v1.2
+- Store interior x -20..20, z -16 (back wall, `ZB`) .. 23 (glass storefront). Ceiling at 3.8.
+- Shelf rows at x = -16, -12.6, -9.2, -5.8, -2.2, 2.2, 5.8, 9.2, 12.6, 16, spanning z -11..6. Wide center aisle at x = 0 looks at the freezer.
+- Customer aisles: `StoreBuilder.AISLE_X`. Cross corridors at `FRONT_Z` 8.2 and `BACK_Z` -13.2.
+- Freezer: glass-door case on the back wall, about 12 m wide.
+- One checkout: counter at x 4.7, z ~14.5. The queue is at x 3.15 and folds sideways if it gets long (`QUEUE_HEAD_Z` / `QUEUE_MIN_Z`). Cashier stands on the +X side of the counter.
+- Front automatic sliding door at x = 0 (z = 23). Glass storefront plus a left-wall window band.
+- Stockroom: full width x -20..20, z -16..-34 (18 m deep). Lit only down the middle (two spotlights). Dark corners have empty racks. The employee entrance is a strip curtain in the left aisle (`STOCK_DOOR_X` -14.3), clear of the freezer. Gun locker is on the west wall. Back-office desk is just inside, toward the center. Swinging back door at x = 14, z = -34.
+- Outside: lot fenced at x -42..42, z -48..48, with a driveway gap in the front fence (x -5..5). Parking rows at z 32 and 39.5. Cart corral at (-8, 28). Fuel bay at (32, 31), dark except the pump lights. Dumpster in the back lot.
+- Trash can at (8.6, 19.2).
 
 ## Status
 <!-- STATUS-START -->
+### v1.2 (in progress)
+- [x] Customer avoidance: they steer around each other and the player instead of freezing in contact. Queue spots are unique (the line folds instead of stacking on one point).
+- [x] Failsafe: a customer who makes no progress in a state is nudged, rerouted, snapped to the register if they are first in line, or forced to leave. Patience still runs while they are blocked, so nobody waits forever.
+- [x] One register and a bigger sales floor (10 shelf rows). Stockroom is full-width and 18 m deep, lit only in the middle, with dark corners. Fuel bay, cart corral and parking rows are built. Two cars sit in the lot until the driving AI lands.
+- [x] No handheld scanner and no "BARCODE SCANNER" HUD. USE on a belt item or the register rings it up. USE on a matching shelf stocks; otherwise USE or Q drops the box or bag on the floor (`dropped_item.gd`). Nothing teleports home.
+- [x] Shopping carts (`scripts/cart.gd`): eight start in the corral. Customers fetch one, and some abandon them in the lot. The player grabs (E or C), pushes, shoves, and can ride one up the rear ramp. Returning a player-moved cart to the corral pays $0.75.
+- [x] Cars (`scripts/vehicle.gd`): shoppers drive in from the front gate, park, walk in, and drive off when they leave. About 30% of spawns are fuel customers. They stop under the pump lights. USE the car to hear a dollar amount or "fill it up", USE again to run the meter, USE to stop. Pay scales with accuracy. A pump gives up after 75s so the bay never sticks.
+- [x] Shop (`data/economy.json`, `scripts/economy.gd`): back-office terminal and a pause-menu Shop button. Buys the locker key, ammo, flashlight (F), faster ring-up, double cart pay, stamina snacks (1 to eat), and vest colors. Sprint now uses a stamina bar.
+- [x] Saves (`scripts/save_game.gd`): pause Save, autosave at shift end and on background/quit, version 2 with two backups. A version-1 file (`earnings` only, as from 1.1.1) migrates. Title screen is Continue / New Game.
+- [x] Shotgun from the unlocked locker. G equips, R reloads, click or FIRE shoots the center of the screen. Muzzle flash and a synthesized shot. Practice cans and bottles out back and in the stockroom. The ray never hits a customer.
+- [x] Touch HUD shrunk. No PUT BACK, no JUMP. RUN is a small button at the top left. Pause is top right and does not overlap it. CART, GUN, FIRE, LIGHT, and EAT show up only when they apply.
+- [x] Headless sim (`tests/sim_test.gd`): several in-game minutes, customers all served, cars leave, a fuel job pays, a cart is returned, save/load and v1 migrate pass.
+- Version is 1.2. iOS build number is 4. CI builds Windows, Mac, and the unsigned IPA on this branch.
+
+### v1.2.1 (in progress)
+- [x] Employee entrance is a real opening with a strip curtain on the back-left wall. The freezer no longer seals it. `tests/reach_test.gd` ray-checks the stockroom, back office, gun locker, back door, dumpster, front door, and fuel bay.
+- [x] Performance: shelf price tags, the ceiling grid, fence posts, and shelf frames are batched (draw calls about 830 → about 520 on the desktop profile). Graphics presets live in the pause menu: Low / Medium / High / Ultra, a render-scale slider, an FPS cap (30 / 60 / unlimited), and an FPS counter. Low keeps about 10 lights, no MSAA, no bloom, a slightly thicker fog, and hides far shelf rows. iOS defaults to Low with a 60 FPS cap. Desktop defaults to High, with Ultra available. The choice is saved in `user://settings.cfg`.
+- Version is 1.2.1. iOS build number is 5.
+
+### v1.2.2
+- [x] Low was dark because it kept about 10 omni lights (the center aisle, freezer, stockroom spots, and pumps) and turned the rest off, with ambient at 0.24 and no bloom. Side aisles had almost no light.
+- [x] Every preset now shares the same base: warmer ambient, one directional fill, and an emissive sales-floor ceiling. Accent omnis, MSAA, and shadows are the only things higher presets add. A saved Brightness slider scales that base.
+- [x] `tests/luminance_test.gd` renders the sales floor, stockroom, and lot at Low and High and checks average luminance.
+- Version is 1.2.2. iOS build number is 6.
+
 ### v1.1.1 (iPhone)
 - [x] Touch controls (`scripts/touch_controls.gd`), on automatically when `OS.has_feature("mobile")` (desktop testing: `godot -- --touch`). Left joystick moves, dragging the right side looks, and there are USE (hold to stock), PUT BACK, RUN toggle, JUMP and II pause buttons. Buttons inject InputEventActions. No mouse capture on mobile, and the mouse-click binding is removed from `interact` so emulated taps don't trigger USE.
 - [x] Phone HUD: landscape only (`display/window/handheld/orientation=4`), safe-area margins (`Hud.safe_rect`), UI scale 1.3, scanner status moved to the top center.
@@ -90,9 +115,13 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [ ] Next: multiplayer + proximity voice (Roadmap #1-2)
 <!-- STATUS-END -->
 
-### Known issues / rough edges (1.1)
+### Known issues / rough edges (1.2)
 - iPhone: touch tuning and frame rate are not playtested on real hardware. Unsigned IPA must be signed by the sideloader (Signulous).
-- Customers are kinematic (waypoints only). They stop for the player and each other but don't path around. If you stand in a lane, they wait ("Excuse me!").
+- Customers are kinematic (waypoints plus steering). They sidestep the player and each other, and each reserves their own cart so a crowd doesn't circle one basket. A failsafe unsticks a state that stops making progress. Movement is substepped so a long frame doesn't fling them.
+- A mid-shift save restores money, purchases, and the clock. It does not restore live customers, carts, or cars.
+- The shotgun cannot hurt customers. Practice targets are the only thing it knocks over.
+- Cars follow a short waypoint path and stop if you're in front of them. They creep past after a few seconds so a blocked lane doesn't last forever.
+- iPhone touch layout is sized for landscape with the safe area, and has not been playtested on a device. The IPA is unsigned. The simulator link step can still fail on MetalFX (continue-on-error).
 - Freezer items never run out (only aisle shelves are stockable).
 - Product labels are colored stripes, not real text. Crate labels in the stockroom are text.
 - Tuning (spawn 10-22 s, max 7 customers, patience 150 s, trash fill 150 s) has not been playtested.

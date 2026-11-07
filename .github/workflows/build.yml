@@ -1,7 +1,9 @@
 name: build
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'cursor/**'
   workflow_dispatch:
 env:
   GODOT_VERSION: 4.4.1
@@ -27,26 +29,51 @@ jobs:
           grep -q "SMOKE: done" smoke.log || { echo "Smoke test did not finish"; exit 1; }
           exit $code
         shell: bash
+      - name: Reachability
+        run: |
+          godot --headless --script res://tests/reach_test.gd 2>&1 | tee reach.log
+          code=${PIPESTATUS[0]}
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" reach.log; then echo "Script errors found"; exit 1; fi
+          grep -q "REACH: done ok=true" reach.log || { echo "Reachability failed"; exit 1; }
+          exit $code
+        shell: bash
+      - name: Luminance
+        run: |
+          if ! command -v xvfb-run >/dev/null; then apt-get update -qq && apt-get install -y -qq xvfb; fi
+          xvfb-run -a -s "-screen 0 640x360x24" godot --rendering-driver opengl3 --script res://tests/luminance_test.gd 2>&1 | tee luma.log
+          code=${PIPESTATUS[0]}
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" luma.log; then echo "Script errors found"; exit 1; fi
+          grep -q "LUMA: done ok=true" luma.log || { echo "Luminance check failed"; exit 1; }
+          exit $code
+        shell: bash
+      - name: Simulation
+        run: |
+          godot --headless --script res://tests/sim_test.gd 2>&1 | tee sim.log
+          code=${PIPESTATUS[0]}
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" sim.log; then echo "Script errors found"; exit 1; fi
+          grep -q "SIM: done ok=true" sim.log || { echo "Simulation failed"; exit 1; }
+          exit $code
+        shell: bash
       - name: Export Windows
         run: |
           mkdir -p build/windows
           godot --headless --export-release "Windows Desktop" build/windows/NightShift.exe
           cp README.md build/windows/README.txt
-          cd build/windows && zip -r ../NightShift-1.1.1-Windows.zip .
+          cd build/windows && zip -r ../NightShift-1.2.2-Windows.zip .
       - name: Export macOS
         run: |
           mkdir -p build/mac
-          godot --headless --export-release "macOS" build/mac/NightShift-1.1.1-Mac.zip
+          godot --headless --export-release "macOS" build/mac/NightShift-1.2.2-Mac.zip
           ls -la build/mac
       - uses: actions/upload-artifact@v4
         with:
-          name: NightShift-1.1.1-Windows
-          path: build/NightShift-1.1.1-Windows.zip
+          name: NightShift-1.2.2-Windows
+          path: build/NightShift-1.2.2-Windows.zip
           compression-level: 0
       - uses: actions/upload-artifact@v4
         with:
-          name: NightShift-1.1.1-Mac
-          path: build/mac/NightShift-1.1.1-Mac.zip
+          name: NightShift-1.2.2-Mac
+          path: build/mac/NightShift-1.2.2-Mac.zip
           compression-level: 0
 
   ios:
@@ -112,12 +139,12 @@ jobs:
           ls "$APPDIR" | head -40
           ls "$APPDIR" | grep -E "\.pck$"
           ls "$APPDIR" | grep -E "AppIcon|Assets.car"
-          zip -qry NightShift-1.1.1.ipa Payload
-          ls -lh NightShift-1.1.1.ipa
+          zip -qry NightShift-1.2.2.ipa Payload
+          ls -lh NightShift-1.2.2.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: NightShift-1.1.1-iOS-unsigned-ipa
-          path: NightShift-1.1.1.ipa
+          name: NightShift-1.2.2-iOS-unsigned-ipa
+          path: NightShift-1.2.2.ipa
           compression-level: 0
       - name: Simulator launch smoke test
         id: sim
