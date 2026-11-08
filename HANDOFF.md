@@ -51,16 +51,16 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - `tests/smoke_test.gd`: headless test that also self-tests change math, stocking, the trash loop and the locker. `tests/screenshot.gd` renders the doc shots.
 - `docs/concept/`: approved concept art. `docs/screenshot_*.png`: in-game renders.
 
-## World layout (meters, +Z = front/entrance) — v1.2
-- Store interior x -20..20, z -16 (back wall, `ZB`) .. 23 (glass storefront). Ceiling at 3.8.
-- Shelf rows at x = -16, -12.6, -9.2, -5.8, -2.2, 2.2, 5.8, 9.2, 12.6, 16, spanning z -11..6. Wide center aisle at x = 0 looks at the freezer.
-- Customer aisles: `StoreBuilder.AISLE_X`. Cross corridors at `FRONT_Z` 8.2 and `BACK_Z` -13.2.
+## World layout (meters, +Z = front/entrance) — v1.5 compact gas station
+- Store interior x -9..9, z -10 (back wall, `ZB`) .. 12 (glass storefront). Ceiling at 3.8.
+- Shelf rows at x = -6.2, -2.1, 2.1, 6.2, spanning z -5.5..2.5. The center aisle at x = 0 looks at the freezer.
+- Customer aisles: `StoreBuilder.AISLE_X`. Cross corridors at `FRONT_Z` 5.0 and `BACK_Z` -7.0.
 - Freezer: glass-door case on the back wall, about 12 m wide.
-- One checkout: counter at x 4.7, z ~14.5. The queue is at x 3.15 and folds sideways if it gets long (`QUEUE_HEAD_Z` / `QUEUE_MIN_Z`). Cashier stands on the +X side of the counter.
-- Front automatic sliding door at x = 0 (z = 23). Glass storefront plus a left-wall window band.
-- Stockroom: full width x -20..20, z -16..-34 (18 m deep). Lit only down the middle (two spotlights). Dark corners have empty racks. The employee entrance is a strip curtain in the left aisle (`STOCK_DOOR_X` -14.3), clear of the freezer. Gun locker is on the west wall. Back-office desk is just inside, toward the center. Swinging back door at x = 14, z = -34.
-- Outside: lot fenced at x -42..42, z -48..48, with a driveway gap in the front fence (x -5..5). Parking rows at z 32 and 39.5. Cart corral at (-8, 28). Fuel bay at (32, 31), dark except the pump lights. Dumpster in the back lot.
-- Trash can at (8.6, 19.2).
+- One checkout: counter at x 4.0, z ~8.5. The queue is at x 2.7 and folds sideways if it gets long (`QUEUE_HEAD_Z` / `QUEUE_MIN_Z`). Cashier stands on the +X side of the counter.
+- Front automatic sliding door at x = 0 (z = 12). Glass storefront plus a left-wall window band.
+- Stockroom: full width x -9..9, z -10..-20 (10 m deep). Lit only down the middle (two spotlights). Dark corners have short racks. The employee entrance is a strip curtain at `STOCK_DOOR_X` -6.8. Gun locker is on the west wall. Back-office desk is just inside. Swinging back door at x = 6.5, z = -20.
+- Outside: lot fenced at x -18..18, z -27..24, with a driveway gap in the front fence. Parking rows are at z 17 and 22. Cart corral at (-6.5, 16). Fuel bay at (7, 17), next to the storefront. Dumpster is behind the stockroom.
+- Trash can at (7.2, 9.2).
 
 ## Status
 <!-- STATUS-START -->
@@ -187,6 +187,14 @@ During the shift, customers create competing problems. Shelves become empty, cus
 At 6 AM, show customers served, revenue and tips, products restocked, complaints, trash cleaned, theft stopped, store damage, clown encounters, and each teammate's contribution. Later shifts can increase customers, demand, theft, darkness, layout changes, and clown pressure.
 
 ## Step 1 — Restocking vertical slice: The Night Shift Works
+
+### Checkpoint 3 — compact gas-station convenience store
+
+The project has pivoted from a supermarket to a small gas-station convenience store so the current gameplay loop does not require long, empty runs. `scripts/store_builder.gd` now uses an 18 m wide by 24 m deep sales floor, four shelf rows, a 10 m deep stockroom, a short employee route, and a close lot. The freezer, one checkout, order board, milk pallet, back office, locker, back door, dumpster, cart corral, parking, and two-pump fuel island remain. `scripts/customer.gd` now takes its aisle and corridor constants from `StoreBuilder`, and `scripts/game.gd`, `scripts/player.gd`, and `scripts/vehicle.gd` use compact spawn, recovery, lot, and crash bounds.
+
+The compact exterior keeps the gas-station identity: parking rows sit just outside the storefront, the fuel canopy is nearby, and the lot fence is no longer a huge empty field. The stockroom still has dark rack sightlines, but only two short rack rows and a clear center route. Reachability routes were rewritten around the freezer, milk pallet, practice targets, rack frames, and open back door.
+
+Validation checkpoint: smoke, milk restocking, simulation, reachability, screenshot rendering, and OpenGL luminance all pass. Existing shutdown warnings about customer vehicle cleanup/ObjectDB leaks remain non-blocking. Next physical test should specifically verify that the shorter routes feel better on touch controls, that the fuel island is easy to reach, and that the compact freezer remains visually readable from the main room.
 
 ### Checkpoint 2 — freezer placement and visual stocking cleanup
 

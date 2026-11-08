@@ -122,7 +122,7 @@ func _ready() -> void:
 	hud.shop_closed.connect(close_shop)
 	player = preload("res://scripts/player.gd").new()
 	player.name = "Player"
-	player.position = Vector3(6.6, 0.05, 15.4)
+	player.position = Vector3(4.8, 0.05, 8.6)
 	player.rotation.y = PI * 0.5
 	player.process_mode = Node.PROCESS_MODE_PAUSABLE
 	add_child(player)
@@ -245,7 +245,7 @@ func _spawn_monster() -> void:
 	monster.name = "TheBackroomThing"
 	add_child(monster)
 	var spawn_out_back := randf() < 0.35
-	monster.global_position = Vector3(randf_range(-16.0, 16.0), 0, -47.0 if spawn_out_back else randf_range(-39.0, -20.0))
+	monster.global_position = Vector3(randf_range(-6.5, 6.5), 0, -22.0 if spawn_out_back else randf_range(-18.5, -11.0))
 	monster.setup(self, player)
 	clown_triggered = true
 	# No warning text: the player hears the arrival and has to notice it.
@@ -258,7 +258,7 @@ func monster_attack(_m: Node) -> void:
 	hud.toast("RUN. It found you.", 3.0)
 	stats.earnings = maxi(0, int(stats.earnings) - 100)
 	hud.set_money(stats.earnings)
-	player.global_position = Vector3(6.6, 0.05, 15.4)
+	player.global_position = Vector3(4.8, 0.05, 8.6)
 
 func take_freezer_item(product_idx: int) -> Dictionary:
 	var left := int(freezer_stock.get(product_idx, 0))
@@ -397,7 +397,7 @@ func _spawn_walker() -> Node:
 	c.game = self
 	var door_z := StoreBuilder.D * 0.5
 	c.wants_cart = randf() < 0.7
-	c.position = Vector3(StoreBuilder.DOOR_X + randf_range(-0.4, 0.4), 0, door_z + 8.0)
+	c.position = Vector3(StoreBuilder.DOOR_X + randf_range(-0.4, 0.4), 0, door_z + 4.0)
 	c.finished.connect(_on_customer_finished)
 	customers_root.add_child(c)
 	c.path.push_front(Vector3(StoreBuilder.DOOR_X, 0, door_z + 3.0))
@@ -606,13 +606,13 @@ func _recover_registers() -> void:
 
 func _spawn_targets() -> void:
 	var spots: Array = [
-		{"p": Vector3(6.5, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
-		{"p": Vector3(7.2, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
-		{"p": Vector3(7.9, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "can"},
-		{"p": Vector3(8.6, 0.82, StoreBuilder.ROOM_Z - 4.5), "k": "bottle"},
-		{"p": Vector3(16.2, 0.9, -31.2), "k": "bottle"},
-		{"p": Vector3(16.8, 0.9, -31.2), "k": "can"},
-		{"p": Vector3(17.4, 0.9, -31.2), "k": "bottle"},
+		{"p": Vector3(2.8, 0.82, StoreBuilder.ROOM_Z + 2.0), "k": "can"},
+		{"p": Vector3(3.5, 0.82, StoreBuilder.ROOM_Z + 2.0), "k": "can"},
+		{"p": Vector3(4.2, 0.82, StoreBuilder.ROOM_Z + 2.0), "k": "can"},
+		{"p": Vector3(4.9, 0.82, StoreBuilder.ROOM_Z + 2.0), "k": "bottle"},
+		{"p": Vector3(2.8, 0.9, StoreBuilder.ROOM_Z + 5.0), "k": "bottle"},
+		{"p": Vector3(3.5, 0.9, StoreBuilder.ROOM_Z + 5.0), "k": "can"},
+		{"p": Vector3(4.2, 0.9, StoreBuilder.ROOM_Z + 5.0), "k": "bottle"},
 	]
 	for s in spots:
 		var t = preload("res://scripts/target.gd").new()
@@ -620,7 +620,7 @@ func _spawn_targets() -> void:
 		t.position = s.p
 		t.setup(s.k)
 	# A crate to sit the back-lot targets on.
-	StoreBuilder.box(self, Vector3(2.6, 0.8, 0.6), Vector3(7.5, 0.4, StoreBuilder.ROOM_Z - 4.5), StoreBuilder.mat(Color(0.45, 0.32, 0.18)), true)
+	StoreBuilder.box(self, Vector3(2.6, 0.8, 0.6), Vector3(3.8, 0.4, StoreBuilder.ROOM_Z + 2.0), StoreBuilder.mat(Color(0.45, 0.32, 0.18)), true)
 
 func _spawn_carts() -> void:
 	for slot in store.corral.slots:
@@ -1324,15 +1324,15 @@ func debug_open_routes() -> void:
 func debug_route_block() -> String:
 	var space := get_world_3d().direct_space_state
 	var door_x := StoreBuilder.STOCK_DOOR_X
-	var desk := Vector3(-4.6, 1.0, -17.0)
+	var desk := Vector3(-3.2, 1.0, StoreBuilder.ZB - 1.8)
 	var routes: Array = [
-		["stockroom", [Vector3(0, 1, 8), Vector3(0, 1, -13.2), Vector3(door_x, 1, -13.2), Vector3(door_x, 1, -15.2), Vector3(door_x, 1, -18.5)]],
-		["back office", [Vector3(door_x, 1, -18.0), desk]],
-		["gun locker", [Vector3(door_x, 1, -18.5), Vector3(-18.0, 1, -20.0), Vector3(-18.0, 1, -30.0)]],
-		["back door", [Vector3(0, 1, -22.0), Vector3(0, 1, -28.0), Vector3(10, 1, -32.0), Vector3(StoreBuilder.BACK_DOOR_X, 1, -33.2), Vector3(StoreBuilder.BACK_DOOR_X, 1, -36.0)]],
-		["dumpster", [Vector3(StoreBuilder.BACK_DOOR_X, 1, -36.0), Vector3(StoreBuilder.BACK_DOOR_X - 3.0, 1, StoreBuilder.ROOM_Z - 2.2)]],
-		["front door", [Vector3(0, 1, 18), Vector3(0, 1, 26)]],
-		["fuel bay", [Vector3(0, 1, 28), Vector3(0, 1, 44), Vector3(24, 1, 44), Vector3(StoreBuilder.FUEL_POS.x, 1, 42), Vector3(StoreBuilder.FUEL_POS.x, 1, StoreBuilder.FUEL_POS.z + 4.0)]],
+		["stockroom", [Vector3(0, 1, StoreBuilder.FRONT_Z), Vector3(0, 1, StoreBuilder.BACK_Z), Vector3(door_x, 1, StoreBuilder.BACK_Z), Vector3(door_x, 1, StoreBuilder.ZB - 2.0)]],
+		["back office", [Vector3(door_x, 1, StoreBuilder.ZB - 1.0), Vector3(-4.7, 1, StoreBuilder.ZB - 0.8)]],
+		["gun locker", [Vector3(door_x, 1, StoreBuilder.ZB - 2.0), Vector3(-4.5, 1, -12.0), Vector3(-4.5, 1, -17.0), Vector3(-8.0, 1, -17.0)]],
+		["back door", [Vector3(0, 1, StoreBuilder.BACK_Z), Vector3(-7.5, 1, StoreBuilder.BACK_Z), Vector3(-7.5, 1, StoreBuilder.ZB - 1.0), Vector3(0, 1, StoreBuilder.ZB - 1.0), Vector3(0, 1, StoreBuilder.ROOM_Z + 3.0), Vector3(8.8, 1, StoreBuilder.ROOM_Z + 3.0), Vector3(8.8, 1, StoreBuilder.ROOM_Z), Vector3(StoreBuilder.BACK_DOOR_X, 1, StoreBuilder.ROOM_Z)]],
+		["dumpster", [Vector3(StoreBuilder.BACK_DOOR_X, 1, StoreBuilder.ROOM_Z - 0.5), Vector3(StoreBuilder.BACK_DOOR_X, 1, StoreBuilder.ROOM_Z - 2.0), Vector3(StoreBuilder.BACK_DOOR_X - 3.0, 1, StoreBuilder.ROOM_Z - 2.0)]],
+		["front door", [Vector3(0, 1, StoreBuilder.FRONT_Z), Vector3(0, 1, StoreBuilder.D * 0.5 + 2.0)]],
+		["fuel bay", [Vector3(0, 1, StoreBuilder.D * 0.5 + 2.0), Vector3(StoreBuilder.FUEL_POS.x, 1, StoreBuilder.D * 0.5 + 2.0), Vector3(StoreBuilder.FUEL_POS.x, 1, StoreBuilder.FUEL_POS.z + 4.0)]],
 	]
 	for route in routes:
 		var name: String = route[0]
@@ -1369,11 +1369,11 @@ func debug_pose(shot: String) -> void:
 	player.cam.rotation.x = 0.0
 	match shot:
 		"interior":
-			player.position = Vector3(0.0, 0.05, 18.5)
+			player.position = Vector3(0.0, 0.05, 10.5)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-8)
 		"outside":
-			player.position = Vector3(BACK_DOOR_POS().x - 3.0, 0.05, StoreBuilder.ROOM_Z - 6.0)
+			player.position = Vector3(BACK_DOOR_POS().x - 3.0, 0.05, StoreBuilder.ROOM_Z - 2.5)
 			player.rotation.y = PI - 0.4
 			player.cam.rotation.x = deg_to_rad(-8)
 		"stockroom":
@@ -1383,19 +1383,19 @@ func debug_pose(shot: String) -> void:
 		"icon":
 			hud.visible = false
 			player.viewmodel.visible = false
-			player.position = Vector3(-6.0, 0.05, 34.0)
+			player.position = Vector3(-6.0, 0.05, 18.0)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(2)
 		"front":
-			player.position = Vector3(-6.0, 0.05, 40.0)
+			player.position = Vector3(-6.0, 0.05, 21.0)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-4)
 		"lot":
-			player.position = Vector3(-2.0, 0.05, 44.0)
+			player.position = Vector3(-2.0, 0.05, 24.0)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-6)
 		"fuel":
-			player.position = Vector3(StoreBuilder.FUEL_POS.x, 0.05, StoreBuilder.FUEL_POS.z + 9.0)
+			player.position = Vector3(StoreBuilder.FUEL_POS.x, 0.05, StoreBuilder.FUEL_POS.z + 6.0)
 			player.rotation.y = 0.0
 			player.cam.rotation.x = deg_to_rad(-10)
 

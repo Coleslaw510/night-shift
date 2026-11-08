@@ -467,13 +467,13 @@ func _physics_process(delta: float) -> void:
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()
 	if global_position.y < -2.0:
-		global_position = Vector3(6.6, 0.05, 15.4)
+		global_position = Vector3(4.8, 0.05, 8.6)
 		velocity = Vector3.ZERO
 		var fall_game := get_parent()
 		if fall_game and fall_game.has_method("toast"):
 			fall_game.toast("You caught the edge and climbed back up.")
-	global_position.x = clampf(global_position.x, -40.0, 40.0)
-	global_position.z = clampf(global_position.z, -47.0, 47.0)
+	global_position.x = clampf(global_position.x, -17.0, 17.0)
+	global_position.z = clampf(global_position.z, -26.0, 24.0)
 	_push_carts()
 	_ride(delta)
 	var hs := Vector2(velocity.x, velocity.z).length()

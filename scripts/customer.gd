@@ -10,9 +10,9 @@ signal finished(customer, paid: bool)
 
 enum S { ENTER, SHOP, QUEUED, AT_REGISTER, LEAVING, FETCH_CART }
 
-const AISLES := [-18.2, -14.3, -10.9, -7.5, -4.0, 0.0, 4.0, 7.5, 10.9, 14.3, 18.2]
-const FRONT_Z := 8.2
-const BACK_Z := -13.2
+const AISLES := StoreBuilder.AISLE_X
+const FRONT_Z := StoreBuilder.FRONT_Z
+const BACK_Z := StoreBuilder.BACK_Z
 const PATIENCE := 150.0
 
 var state := S.ENTER
@@ -341,7 +341,7 @@ func pay_and_leave(mood := "") -> void:
 		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), corral]
 	elif my_cart and is_instance_valid(my_cart):
 		_abandon_cart = true
-		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), Vector3(randf_range(-14, 16), 0, door_z + 8.0)]
+		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, door_z + 2.0), Vector3(randf_range(-7, 7), 0, door_z + 4.0)]
 	else:
 		path = [Vector3(lx, 0, FRONT_Z + 1.5), Vector3(StoreBuilder.DOOR_X, 0, FRONT_Z + 1.5)]
 		path.append_array(_exit_path())
