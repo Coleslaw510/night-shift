@@ -21,7 +21,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
   not notarized). Artifacts: `NightShift-Windows`, `NightShift-Mac`.
 
 ## Build / run
-- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.4.0-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 6.
+- iOS: CI job `ios` builds the unsigned IPA (artifact `NightShift-1.5.0-iOS-unsigned-ipa`) for sideloading (Signulous). Bundle ID com.coleslaw510.nightshift, iOS 16+. Build number 6.
 - Open the folder in Godot 4.4.1 and press F5. Main scene: `scenes/menu.tscn`.
 - Smoke test: `godot --headless --import && godot --headless --script res://tests/smoke_test.gd`
   (fails CI on any `SCRIPT ERROR` line or non-zero exit).
@@ -187,6 +187,16 @@ During the shift, customers create competing problems. Shelves become empty, cus
 At 6 AM, show customers served, revenue and tips, products restocked, complaints, trash cleaned, theft stopped, store damage, clown encounters, and each teammate's contribution. Later shifts can increase customers, demand, theft, darkness, layout changes, and clown pressure.
 
 ## Step 1 — Restocking vertical slice: The Night Shift Works
+
+### Checkpoint 2 — freezer placement and visual stocking cleanup
+
+The milk flow now addresses the first physical-playtest failure. The carried stock box is recognized by `scripts/player.gd::_valid_place()` as a valid target when the player is aiming at the open freezer. USE therefore calls the freezer stocking branch instead of `drop_carried()`. The freezer prompt in `scripts/game.gd` explicitly says `PLACE MILK ON FREEZER SHELF (n / 8)` so the destination is clear.
+
+The large decorative freezer cartons were removed from `scripts/store_builder.gd`. The freezer now owns a `FreezerProducts` display root generated from `freezer_stock`; `StoreBuilder.refresh_freezer_display()` rebuilds the visible product pieces after a player stocks a unit and after a customer removes one. The game passes its initial `freezer_stock` into `StoreBuilder.build()` at startup. The restocking acceptance test also verifies that a carried milk box is valid for the freezer and that visible freezer products exist after stocking.
+
+Validation checkpoint: `tests/restock_test.gd`, `tests/smoke_test.gd`, `tests/reach_test.gd`, and `tests/sim_test.gd` pass. `tests/luminance_test.gd` passes with `xvfb-run ... godot --rendering-driver opengl3`. The headless renderer cannot provide a viewport image for luminance, so use the OpenGL command from the test comment. The local test output still reports existing ObjectDB/RID cleanup warnings and vehicle transform warnings; these are not failures for this checkpoint.
+
+Next continuation: run the full CI workflow, then do a physical iPhone pass on the freezer interaction. Confirm the player can open the doors, see the destination prompt, tap USE once per unit without dropping the box, and see the product pieces increase. After that, improve route/task markers and clown-pressure consequences; do not redesign the whole order system until this touch flow is confirmed.
 
 This is the immediate next task and the acceptance gate for the next update. Do not expand the feature list until this flow works on desktop and iPhone controls.
 

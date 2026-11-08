@@ -135,7 +135,7 @@ void fragment(){
 	m.set_shader_parameter("tile", tile)
 	return m
 
-static func build(root: Node3D, target: Object) -> Dictionary:
+static func build(root: Node3D, target: Object, freezer_stock := {}) -> Dictionary:
 	var store := Node3D.new()
 	store.name = "Store"
 	root.add_child(store)
@@ -144,7 +144,7 @@ static func build(root: Node3D, target: Object) -> Dictionary:
 	_floor_and_ceiling(store)
 	_walls(store, out)
 	_lights(store, out)
-	_freezer(store, out, target)
+	_freezer(store, out, target, freezer_stock)
 	_checkouts(store, out, target)
 	_stockroom(store, out, target)
 	_outside(store, out, target)
@@ -330,7 +330,7 @@ static func _lights(store: Node3D, out: Dictionary) -> void:
 			var tier := 2
 			_add_light(store, out, l, tier, l.omni_range)
 
-static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
+static func _freezer(store: Node3D, out: Dictionary, target: Object, freezer_stock: Dictionary) -> void:
 	var z := ZB + 0.6
 	var body := mat(Color(0.22, 0.22, 0.24), 0.0, 0.5, 0.4)
 	var glow := mat(Color(0.75, 0.9, 1.0), 2.2)
@@ -344,26 +344,15 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	add_collider(store, Vector3(12.4, 2.5, 1.3), Vector3(0, 1.25, z))
 	box(store, Vector3(12.0, 2.0, 0.04), Vector3(0, 1.2, z - 0.42), glow)
 	box(store, Vector3(12.0, 0.06, 0.5), Vector3(0, 2.28, z + 0.2), mat(Color(0.9, 0.97, 1.0), 4.0))  # top light strip   # glowing back
-	# shelves + frozen goods inside
-	var xf: Array = []
-	var cols: Array = []
+	# Shelves + direct product displays inside. Products are refreshed from actual inventory;
+	# there are no large shipping cartons hiding the food anymore.
 	for lv in [0.35, 0.8, 1.25, 1.7]:
 		box(store, Vector3(12.0, 0.02, 0.5), Vector3(0, lv, z + 0.2), mat(Color(0.85, 0.9, 0.95), 0.4))
-		var x := -5.85
-		while x < 5.85:
-			var p: Dictionary = Products.CATALOG[Products.FROZEN_ITEMS[randi() % Products.FROZEN_ITEMS.size()]]
-			var s: Vector3 = p.size
-			xf.append(Transform3D(Basis.from_scale(Vector3(s.x, s.y, 0.3)), Vector3(x + s.x * 0.5, lv + 0.01 + s.y * 0.5, z + 0.2)))
-			cols.append(p.color.lerp(Color.WHITE, 0.25))
-			x += s.x + 0.04
-	_multimesh(store, xf, cols, 0.3)
-	# Large front-facing cartons make the food unmistakable through the doors.
-	for lv in [0.35, 0.8, 1.25, 1.7]:
-		var x2 := -5.55
-		while x2 < 5.5:
-			var product: Dictionary = Products.CATALOG[Products.FROZEN_ITEMS[(abs(int(x2 * 10.0)) + int(lv * 10.0)) % Products.FROZEN_ITEMS.size()]]
-			_crate(store, Vector3(x2, lv, z + 0.43), product, 0.0)
-			x2 += 1.35
+	var display := Node3D.new()
+	display.name = "FreezerProducts"
+	store.add_child(display)
+	out.freezer_display = display
+	refresh_freezer_display(display, freezer_stock, z)
 	# Seven independent glass doors, each hinged along its top edge.
 	var doors: Array = []
 	for i in 7:
@@ -391,6 +380,31 @@ static func _freezer(store: Node3D, out: Dictionary, target: Object) -> void:
 	label(store, "FREEZER AISLE ->", Vector3(0, 3.12, z + 0.44), 96, Color(0.85, 0.88, 0.9), 0.0, 0.0045)
 	# Broad interact surface for the freezer doors on desktop and touch.
 	out.freezer = {"body": Interact.make(store, Vector3(11.8, 2.0, 0.9), Vector3(0, 1.15, z + 0.58), target, {"kind": "freezer"}), "doors": doors}
+
+static func refresh_freezer_display(display: Node, freezer_stock: Dictionary, freezer_z := ZB + 0.6) -> void:
+	if display == null or not is_instance_valid(display):
+		return
+	for child in display.get_children():
+		child.free()
+	var products: Array = []
+	for pidx in Products.FROZEN_ITEMS:
+		for _i in int(freezer_stock.get(pidx, 0)):
+			products.append(int(pidx))
+	var levels := [0.35, 0.8, 1.25, 1.7]
+	var per_level := 12
+	for i in products.size():
+		var pidx: int = products[i]
+		var p: Dictionary = Products.CATALOG[pidx]
+		var level: int = mini(i / per_level, levels.size() - 1)
+		var slot: int = i % per_level
+		var x := -5.55 + slot * 1.0
+		var product := Node3D.new()
+		product.name = "%s_%d" % [p.name.replace(" ", "_"), i]
+		display.add_child(product)
+		var h := clampf(float(p.size.y) * 1.25, 0.18, 0.34)
+		var w := clampf(float(p.size.x) * 1.45, 0.18, 0.48)
+		box(product, Vector3(w, h, 0.28), Vector3(x, levels[level] + h * 0.5 + 0.03, freezer_z + 0.18), mat(p.color.lerp(Color.WHITE, 0.18), 0.15))
+		box(product, Vector3(w * 0.78, h * 0.28, 0.012), Vector3(x, levels[level] + h * 0.55 + 0.03, freezer_z + 0.325), mat(Products.label_color(p)))
 
 static func _multimesh(parent: Node, xf: Array, cols: Array, emission := 0.0) -> MultiMeshInstance3D:
 	var mm := MultiMesh.new()

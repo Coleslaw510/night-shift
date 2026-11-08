@@ -82,7 +82,7 @@ func _ready() -> void:
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
-	store = StoreBuilder.build(self, self)
+	store = StoreBuilder.build(self, self, freezer_stock)
 	shelves = ShelfSystem.new()
 	add_child(shelves)
 	shelves.build()
@@ -265,6 +265,8 @@ func take_freezer_item(product_idx: int) -> Dictionary:
 	if left <= 0:
 		return {"missing": Products.CATALOG[product_idx]}
 	freezer_stock[product_idx] = left - 1
+	if store.has("freezer_display"):
+		StoreBuilder.refresh_freezer_display(store.freezer_display, freezer_stock)
 	return Products.CATALOG[product_idx]
 
 func enter_vehicle(car: Node) -> void:
@@ -748,8 +750,13 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 			var low := 0
 			for v in freezer_stock.values(): low += int(v)
 			if freezer_open and player.carrying.get("kind", "") == "stock" and int(player.carrying.product) in Products.FROZEN_ITEMS:
-				return "[E] Stock freezer with %s" % Products.CATALOG[player.carrying.product].name
-			return "[E] Refill freezer from a back-room box  (%d frozen items left)" % low if freezer_open else "[E] Open freezer doors  (%d frozen items)" % low
+				var carried_name: String = Products.CATALOG[player.carrying.product].name
+				if int(player.carrying.product) == MILK_PRODUCT:
+					return "[USE] PLACE %s ON FREEZER SHELF  (%d / %d)" % [carried_name.to_upper(), milk_order_progress, MILK_ORDER_TOTAL]
+				return "[USE] PLACE %s ON FREEZER SHELF" % carried_name.to_upper()
+			if freezer_open:
+				return "[E] Refill freezer from a back-room box  (%d frozen items left)" % low
+			return "[E] Open freezer doors  (%d frozen items)" % low
 		"checkout_gun":
 			return "Pistol issued to every employee"
 		"locker":
@@ -801,6 +808,8 @@ func on_interact(body: Node, _p: Node) -> void:
 					var product_idx := int(c.product)
 					freezer_stock[product_idx] = mini(12, int(freezer_stock.get(product_idx, 0)) + 1)
 					player.use_stock_unit()
+					if store.has("freezer_display"):
+						StoreBuilder.refresh_freezer_display(store.freezer_display, freezer_stock)
 					if product_idx == MILK_PRODUCT:
 						milk_order_progress = mini(MILK_ORDER_TOTAL, milk_order_progress + 1)
 						_update_order_board()

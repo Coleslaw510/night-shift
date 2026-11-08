@@ -285,6 +285,8 @@ func _valid_place(t: Node) -> bool:
 			return false
 		var s: Dictionary = t.target.slots[i]
 		return int(s.product) == int(carrying.product) and int(s.count) < int(s.cap)
+	if carrying.get("kind", "") == "stock" and kind == "freezer":
+		return int(carrying.product) in Products.FROZEN_ITEMS
 	if carrying.get("kind", "") == "trash" and kind == "dumpster":
 		return true
 	return false

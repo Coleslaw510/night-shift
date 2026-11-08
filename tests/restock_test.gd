@@ -50,11 +50,15 @@ func _run() -> void:
 	var freezer := _body("freezer")
 	for i in game.MILK_ORDER_TOTAL:
 		game.freezer_open = true
+		if not game.player._valid_place(freezer):
+			_fail("carried milk box was not recognized as valid freezer placement")
 		game.on_interact(freezer, game.player)
 	if game.milk_order_progress != game.MILK_ORDER_TOTAL:
 		_fail("freezer stocking did not reach eight milk units")
 	if not game.player.carrying.is_empty():
 		_fail("milk box still had units after stocking the order")
+	if not game.store.has("freezer_display") or game.store.freezer_display.get_child_count() <= 0:
+		_fail("stocked freezer did not show direct product items on its shelves")
 	if not game.milk_customer_claimed and not game.claim_milk_customer(null):
 		_fail("completed order did not unlock the milk customer")
 	if game.store.order_board.text.find("SERVE MILK CUSTOMER") < 0:
