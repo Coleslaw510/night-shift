@@ -2,7 +2,7 @@ extends Node3D
 ## Main game controller: builds the store, shelves, HUD, player, registers; spawns customers;
 ## runs the shift clock (10 PM -> 6 AM), doors, trash, stock hints and the end-of-shift summary.
 
-const VERSION := "1.3.0"
+const VERSION := "1.4.0"
 const SHIFT_START_MIN := 22 * 60          # 10:00 PM
 const SHIFT_LENGTH_MIN := 8 * 60          # until 6:00 AM
 const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
@@ -69,7 +69,7 @@ func _ready() -> void:
 	randomize()
 	Economy.load_data()
 	for pidx in Products.FROZEN_ITEMS:
-		freezer_stock[int(pidx)] = 2
+		freezer_stock[int(pidx)] = 8
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
@@ -120,10 +120,12 @@ func _ready() -> void:
 	player.touch_mode = touch_mode
 	# Every employee starts with the pistol; it is not a shop unlock.
 	player.has_gun = true
-	ammo = 999999
-	mag_ammo = 8
+	ammo = 32
+	mag_ammo = 32
 	player.prompt_changed.connect(hud.set_prompt)
 	player.carry_changed.connect(_on_carry_changed)
+	if NetworkSession.active:
+		_setup_multiplayer()
 	for i in 6:
 		var a := AudioStreamPlayer.new()
 		a.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -187,6 +189,8 @@ func _process(delta: float) -> void:
 			exit_vehicle()
 		return
 	play_seconds += delta
+	if NetworkSession.active and player:
+		NetworkSession.submit_pose(player.global_position, player.rotation.y)
 	_flicker()
 	_doors(delta)
 	elapsed += delta
@@ -207,9 +211,9 @@ func _process(delta: float) -> void:
 	monster_t += delta
 	# Neglected shelves, freezer stock, trash, and unhappy customers build pressure.
 	if shelves and shelves.total_fill() < 0.38:
-		complaint_level += delta * 0.10
+		complaint_level += delta * 0.025
 	if trash > 0.8:
-		complaint_level += delta * 0.04
+		complaint_level += delta * 0.01
 	if monster == null and not clown_triggered and complaint_level >= 10.0 and elapsed >= 35.0:
 		_spawn_monster()
 	if elapsed >= SHIFT_REAL_SECONDS:
@@ -306,13 +310,54 @@ func exit_vehicle() -> void:
 	player.cam.current = true
 	hud.toast("Back on foot.")
 
+func _setup_multiplayer() -> void:
+	NetworkSession.player_joined.connect(_on_network_player_joined)
+	NetworkSession.player_left.connect(_on_network_player_left)
+	NetworkSession.pose_received.connect(_on_network_pose)
+	var remotes := Node3D.new()
+	remotes.name = "RemotePlayers"
+	add_child(remotes)
+	set_meta("remote_players", {})
+	for id in NetworkSession.roster.keys():
+		_on_network_player_joined(int(id), str(NetworkSession.roster[id]))
+	NetworkSession.register_client()
+
+func _on_network_player_joined(id: int, player_name: String) -> void:
+	if id == multiplayer.get_unique_id():
+		return
+	var remotes: Node3D = get_node_or_null("RemotePlayers")
+	if remotes == null or remotes.has_node("Peer%d" % id):
+		return
+	var remote := preload("res://scripts/remote_player.gd").new()
+	remote.name = "Peer%d" % id
+	remotes.add_child(remote)
+	remote.setup(player_name)
+	var map: Dictionary = get_meta("remote_players", {})
+	map[id] = remote
+	set_meta("remote_players", map)
+	hud.toast("%s joined the night shift." % player_name)
+
+func _on_network_player_left(id: int) -> void:
+	var map: Dictionary = get_meta("remote_players", {})
+	var remote: Node = map.get(id)
+	if remote and is_instance_valid(remote):
+		remote.queue_free()
+	map.erase(id)
+	set_meta("remote_players", map)
+
+func _on_network_pose(id: int, pos: Vector3, yaw: float) -> void:
+	var map: Dictionary = get_meta("remote_players", {})
+	var remote: Node = map.get(id)
+	if remote and is_instance_valid(remote):
+		remote.apply_pose(pos, yaw)
+
 func vehicle_damaged_store(car: Node) -> void:
 	if car.damage_reported:
 		return
 	car.damage_reported = true
 	if store.has("damage"):
+		# The damage prop is built at the storefront and stays there as persistent evidence.
 		store.damage.visible = true
-		store.damage.global_position = Vector3(car.global_position.x, 0, car.global_position.z)
 	if shelves and shelves.has_method("damage_row_near"):
 		shelves.damage_row_near(car.global_position.x)
 	complaint_level += 2.0

@@ -67,7 +67,7 @@ func build() -> void:
 					var p: Dictionary = Products.CATALOG[pidx]
 					var s: Vector3 = p.size * VIS
 					var cap := clampi(int((slot_len - 0.04) / (s.x + 0.015)), 2, 12)
-					var count := randi_range(0, maxi(1, cap / 3)) if randf() < 0.85 else randi_range(0, 1)
+					var count := randi_range(cap / 2, cap) if randf() < 0.85 else randi_range(0, 1)
 					var z0: float = StoreBuilder.SHELF_Z0 + 0.15 + si * slot_len
 					slots.append({"row": r, "side": side, "level": li, "idx": si, "product": pidx, "cap": cap, "count": count, "z0": z0, "inst": 0})
 				# price tags along the shelf edge

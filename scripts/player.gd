@@ -41,7 +41,7 @@ var gun_node: Node3D
 var muzzle: MeshInstance3D
 var muzzle_light: OmniLight3D
 var _muzzle_t := 0.0
-const MAG := 6
+const MAG := 32
 
 func _ready() -> void:
 	Settings.load_settings()
@@ -188,7 +188,7 @@ func _fire() -> void:
 	if g == null or not gun_out or _muzzle_t > 0.0:
 		return
 	if int(g.mag_ammo) <= 0:
-		_play("click")
+		_reload()
 		return
 	g.mag_ammo = int(g.mag_ammo) - 1
 	_muzzle_t = 0.05
@@ -464,6 +464,14 @@ func _physics_process(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, dir.x * spd, 40 * delta)
 	velocity.z = move_toward(velocity.z, dir.z * spd, 40 * delta)
 	move_and_slide()
+	if global_position.y < -2.0:
+		global_position = Vector3(6.6, 0.05, 15.4)
+		velocity = Vector3.ZERO
+		var fall_game := get_parent()
+		if fall_game and fall_game.has_method("toast"):
+			fall_game.toast("You caught the edge and climbed back up.")
+	global_position.x = clampf(global_position.x, -40.0, 40.0)
+	global_position.z = clampf(global_position.z, -47.0, 47.0)
 	_push_carts()
 	_ride(delta)
 	var hs := Vector2(velocity.x, velocity.z).length()

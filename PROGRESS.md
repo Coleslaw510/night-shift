@@ -1,4 +1,6 @@
 # Progress
+## v1.4.0: **in progress**
+The maintenance slice restores normal starting stock, gives the pistol a 32-round reserve with automatic reload, slows clown pressure, darkens the stockroom, adds fall recovery, and makes storefront crash detection trigger before the glass collision blocks the car. The first multiplayer slice is now in the project: ENet host/join UI, a four-player room limit, headless `--server` mode, command-line `--join=ADDRESS`, and synchronized remote player avatars. Local smoke tests and a real local host/client connection pass. The VM is connected but unchanged; Minecraft/Bedwars remains untouched. Next: shared server-authoritative interactions, deployment on a separate UDP port, and voice/lobby polish.
 
 ## v1.3.0: **in progress**
 The first playable v1.3 slice adds the larger dark back room, monster patrol/chase, customer hit reactions, checkout shotgun access, freezer interaction, and the iOS pause close fix. Cars can now be entered and driven, crashes report store damage, criminal shoppers flee with stolen goods, and freezer items are finite and refillable. Multiplayer/proximity voice and deeper store-damage persistence remain future work.

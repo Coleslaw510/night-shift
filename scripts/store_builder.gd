@@ -529,8 +529,8 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 	_wall_seg(store, Vector3(-hw - 0.25, 0, ROOM_Z - 0.22), Vector3(BACK_DOOR_X - 0.8, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
 	_wall_seg(store, Vector3(BACK_DOOR_X + 0.8, 0, ROOM_Z - 0.22), Vector3(hw + 0.25, 0, ROOM_Z - 0.22), ext, H, 0.0, 0.2, false)
 	# Two pools of light down the middle. Corners get none.
-	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 2.6, 9.0)
-	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 1.35, 7.5)
+	_down_spot(store, out, Vector3(0, H - 0.35, -21.5), 1.55, 8.0)
+	_down_spot(store, out, Vector3(1.5, H - 0.35, -27.0), 0.7, 6.5)
 	for pil in [Vector3(-12, -23, 0), Vector3(12, -23, 0), Vector3(-12, -30, 0), Vector3(12, -30, 0)]:
 		box(store, Vector3(0.45, H, 0.45), Vector3(pil.x, H * 0.5, pil.y), mat(Color(0.35, 0.34, 0.32)), true)
 	# Pallet rack just inside the employee door: one crate per shelf product

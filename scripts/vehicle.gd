@@ -134,7 +134,9 @@ func _physics_process(delta: float) -> void:
 			dir = dir.normalized()
 			global_position += dir * 9.5 * delta
 			rotation.y = lerp_angle(rotation.y, atan2(dir.x, dir.z), minf(1.0, delta * 10.0))
-			if game and global_position.x > -19 and global_position.x < 19 and global_position.z > -16 and global_position.z < 23 and game.has_method("vehicle_damaged_store"):
+			# Trigger damage as soon as the car reaches the storefront, even if the glass collision stops it.
+			var at_store_front := global_position.x > -20.0 and global_position.x < 20.0 and global_position.z > 18.0 and global_position.z < 24.5
+			if game and at_store_front and game.has_method("vehicle_damaged_store"):
 				game.vehicle_damaged_store(self)
 		return
 	if vstate == V.PARKED or vstate == V.AT_PUMP or vstate == V.DONE:
