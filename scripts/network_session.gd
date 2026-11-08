@@ -73,6 +73,8 @@ func client_roster(incoming: Dictionary) -> void:
 func submit_pose(pos: Vector3, yaw: float) -> void:
 	if not active or not multiplayer.has_multiplayer_peer():
 		return
+	if not multiplayer.is_server() and (peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED):
+		return
 	if multiplayer.is_server():
 		rpc("client_pose", 1, pos, yaw)
 	else:
