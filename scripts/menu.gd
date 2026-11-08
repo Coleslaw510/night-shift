@@ -1,6 +1,8 @@
 extends Control
 ## Main menu, built in code: Start Shift / Quit.
 
+const DEFAULT_SERVER_ADDRESS := "132.145.159.218"
+
 func _ready() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.has("--server"):
@@ -47,7 +49,7 @@ func _ready() -> void:
 	var address := LineEdit.new()
 	address.name = "ServerAddress"
 	address.placeholder_text = "Server IP or hostname"
-	address.text = "127.0.0.1"
+	address.text = DEFAULT_SERVER_ADDRESS
 	address.custom_minimum_size = Vector2(320, 44)
 	box.add_child(address)
 	var host := Button.new()

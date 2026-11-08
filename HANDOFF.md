@@ -89,6 +89,7 @@ boxes, glowing freezer; stylized low-poly human customers. See `docs/concept/`.
 - [x] Darker stockroom and slower clown complaint pressure.
 - [x] Fall recovery and storefront crash detection fixes.
 - [x] ENet host/join lobby foundation with synchronized remote player avatars for PC/Mac/iOS.
+- [x] Pre-fill the co-op address with the deployed VM server (`132.145.159.218`), while keeping it editable.
 - [ ] Shared server-authoritative interactions, lobby readiness, voice chat, and deployed Night Shift VM service.
 
 ### v1.4.0 (in progress)
