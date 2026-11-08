@@ -60,6 +60,20 @@ func _run() -> void:
 	if game.store.order_board.text.find("SERVE MILK CUSTOMER") < 0:
 		_fail("physical order board did not update to the customer step")
 
-	print("RESTOCK: milk box taken, eight units stocked, customer unlocked")
+	var customer := Customer.new()
+	customer.requested_milk = true
+	var earnings_before: int = game.stats.earnings
+	game.complaint_level = 5.0
+	game._on_customer_finished(customer, true)
+	if not game.milk_customer_served:
+		_fail("paid milk customer did not complete the order")
+	if game.stats.earnings != earnings_before + game.MILK_ORDER_REWARD:
+		_fail("paid milk customer did not award the order bonus")
+	if not is_equal_approx(game.complaint_level, 3.0):
+		_fail("paid milk customer did not reduce complaint pressure")
+	if game.store.order_board.text.find("[x] MILK ORDER COMPLETE") < 0:
+		_fail("physical order board did not show completion")
+
+	print("RESTOCK: milk box taken, eight units stocked, customer paid, reward applied")
 	print("RESTOCK: done ok=%s" % str(not failed))
 	quit(1 if failed else 0)
