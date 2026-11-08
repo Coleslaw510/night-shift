@@ -2,7 +2,7 @@ extends Node3D
 ## Main game controller: builds the store, shelves, HUD, player, registers; spawns customers;
 ## runs the shift clock (10 PM -> 6 AM), doors, trash, stock hints and the end-of-shift summary.
 
-const VERSION := "1.4.0"
+const VERSION := "1.5.0"
 const SHIFT_START_MIN := 22 * 60          # 10:00 PM
 const SHIFT_LENGTH_MIN := 8 * 60          # until 6:00 AM
 const SHIFT_REAL_SECONDS := 600.0         # ~10 real minutes per shift
