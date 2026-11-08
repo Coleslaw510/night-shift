@@ -45,6 +45,7 @@ var _avoid_lock := 0.0
 var _excuse_said := false
 var is_criminal := false
 var stolen := false
+var requested_milk := false
 
 var body: Node3D
 var leg_l: Node3D
@@ -254,6 +255,13 @@ var hit_processed := false
 func _next_stop() -> void:
 	var target: Vector3
 	_stop_row = -1
+	if game and game.has_method("claim_milk_customer") and game.claim_milk_customer(self):
+		requested_milk = true
+		is_criminal = false
+		target = Vector3(randf_range(-5.2, 5.2), 0, StoreBuilder.ZB + 2.2)
+		face_dir = Vector3(0, 0, -1)
+		path = _path_to(target)
+		return
 	if randf() < 0.25:
 		target = Vector3(randf_range(-5.2, 5.2), 0, StoreBuilder.ZB + 2.2)
 		face_dir = Vector3(0, 0, -1)
@@ -615,7 +623,7 @@ func _exit_tree() -> void:
 func _grab() -> void:
 	for k in randi_range(1, 2):
 		if _stop_row < 0:
-			var frozen_idx: int = Products.FROZEN_ITEMS.pick_random()
+			var frozen_idx: int = game.get_milk_product() if requested_milk and game and game.has_method("get_milk_product") else Products.FROZEN_ITEMS.pick_random()
 			var frozen: Dictionary = game.take_freezer_item(frozen_idx) if game else Products.CATALOG[frozen_idx]
 			if frozen.has("missing"):
 				annoyed += 1

@@ -14,10 +14,11 @@ const CATALOG := [
 	{"name": "Energy Drink", "price": 3.29, "color": Color(0.1, 0.9, 0.85), "size": Vector3(0.08, 0.2, 0.08)},
 	{"name": "Cookies", "price": 4.29, "color": Color(0.45, 0.25, 0.1), "size": Vector3(0.24, 0.08, 0.14)},
 	{"name": "Ice Cream", "price": 5.99, "color": Color(0.95, 0.6, 0.75), "size": Vector3(0.16, 0.14, 0.16)},
+	{"name": "Milk", "price": 3.49, "color": Color(0.88, 0.94, 1.0), "size": Vector3(0.14, 0.28, 0.1)},
 ]
 
 const SHELF_ITEMS := [0, 1, 2, 3, 4, 5, 6, 7, 10]   # stocked on aisle shelves
-const FROZEN_ITEMS := [8, 9, 11, 1]                 # sold from the freezer (never runs out)
+const FROZEN_ITEMS := [8, 9, 11, 1, 12]             # sold from the freezer
 
 static func random() -> Dictionary:
 	return CATALOG[randi() % CATALOG.size()]

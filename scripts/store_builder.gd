@@ -554,6 +554,17 @@ static func _stockroom(store: Node3D, out: Dictionary, target: Object) -> void:
 		var it := Interact.make(store, Vector3(0.62, 0.45, 0.5), pos + Vector3(0, 0.21, 0), target, {"kind": "crate", "product": items[j]})
 		out.crates.append(it)
 	label(store, "STOCK - grab a box (E)", Vector3(0, 2.55, rack_z + 0.5), 48, Color(1, 0.9, 0.6))
+	# Step 1 vertical slice: a dedicated, clearly labeled milk pallet with a forgiving
+	# interaction zone. Decorative cartons elsewhere do not replace this functional source.
+	var milk_pos := Vector3(-11.5, 0, -19.3)
+	box(store, Vector3(2.6, 0.16, 1.25), milk_pos + Vector3(0, 0.08, 0), orange, true)
+	_crate(store, milk_pos + Vector3(-0.55, 0.16, 0), Products.CATALOG[12], -0.04)
+	_crate(store, milk_pos + Vector3(0.35, 0.16, 0), Products.CATALOG[12], 0.04)
+	label(store, "MILK PALLET\n[E] TAKE A BOX", milk_pos + Vector3(0, 2.15, 0.12), 34, Color(0.82, 0.94, 1.0), 0.0, 0.003)
+	out.milk_pallet = Interact.make(store, Vector3(2.7, 1.65, 1.15), milk_pos + Vector3(0, 0.82, 0.18), target, {"kind": "supply_pallet", "product": 12})
+	# A physical order board gives the crew a destination and a reason to return.
+	box(store, Vector3(0.08, 1.65, 2.5), Vector3(-19.72, 1.65, -17.4), mat(Color(0.035, 0.045, 0.055), 0.0, 0.8), true)
+	out.order_board = label(store, "TONIGHT'S ORDERS\n[ ] RESTOCK MILK 0 / 8\nFREEZER AISLE", Vector3(-19.6, 2.35, -17.4), 30, Color(1.0, 0.84, 0.38), PI * 0.5, 0.0028)
 	# Long rack rows make the back room feel sprawling and create sightline breaks.
 	for rz in [-25.0, -31.0, -37.0, -41.0]:
 		for rx in [-12.0, -4.0, 4.0, 12.0]:

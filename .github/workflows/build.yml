@@ -29,6 +29,14 @@ jobs:
           grep -q "SMOKE: done" smoke.log || { echo "Smoke test did not finish"; exit 1; }
           exit $code
         shell: bash
+      - name: Milk restocking acceptance test
+        run: |
+          godot --headless --script res://tests/restock_test.gd 2>&1 | tee restock.log
+          code=${PIPESTATUS[0]}
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" restock.log; then echo "Script errors found"; exit 1; fi
+          grep -q "RESTOCK: done ok=true" restock.log || { echo "Restocking acceptance test failed"; exit 1; }
+          exit $code
+        shell: bash
       - name: Reachability
         run: |
           godot --headless --script res://tests/reach_test.gd 2>&1 | tee reach.log

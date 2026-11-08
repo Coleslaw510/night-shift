@@ -11,6 +11,9 @@ const TRASH_FILL_SECONDS := 150.0         # empty -> full with no customers
 const TRASH_BONUS := 150                  # cents for taking a bag out
 const CART_PAY := 75                      # cents for a returned stray cart
 const BOX_UNITS := 12
+const MILK_PRODUCT := 12
+const MILK_ORDER_TOTAL := 8
+const MILK_ORDER_REWARD := 300
 
 var store := {}
 var shelves: ShelfSystem
@@ -31,6 +34,10 @@ var trash := 0.35
 var back_door_open := false
 var freezer_open := false
 var freezer_stock := {}
+var milk_supply_boxes := 4
+var milk_order_progress := 0
+var milk_customer_claimed := false
+var milk_customer_served := false
 var complaint_level := 0.0
 var clown_triggered := false
 var driving_car: Node = null
@@ -70,6 +77,8 @@ func _ready() -> void:
 	Economy.load_data()
 	for pidx in Products.FROZEN_ITEMS:
 		freezer_stock[int(pidx)] = 8
+	# Start the tutorial product partially depleted so the first job is meaningful.
+	freezer_stock[MILK_PRODUCT] = 2
 	touch_mode = is_touch()
 	if touch_mode:
 		_setup_mobile()
@@ -142,7 +151,8 @@ func _ready() -> void:
 		tc.game = self
 		tc.player = player
 		add_child(tc)
-	hud.toast("One register on your right. Employees door is the strip curtain on the back-left wall.", 6.0)
+	hud.toast("Check the order board, then take the milk box from the backroom pallet.", 6.0)
+	_update_order_board()
 	_spawn_targets()
 	if SaveGame.boot_mode == "continue":
 		_apply_save(SaveGame.read())
@@ -670,12 +680,40 @@ func _collect_stray_carts() -> void:
 			if slot != null:
 				c.park(slot)
 
-func _on_customer_finished(_c: Node, did_pay: bool) -> void:
+func _on_customer_finished(c: Node, did_pay: bool) -> void:
 	if not did_pay:
 		stats.walked += 1
+	if did_pay and c != null and c.requested_milk and not milk_customer_served:
+		milk_customer_served = true
+		stats.earnings += MILK_ORDER_REWARD
+		complaint_level = maxf(0.0, complaint_level - 2.0)
+		hud.set_money(stats.earnings)
+		hud.toast("MILK ORDER COMPLETE  +$%.2f" % (MILK_ORDER_REWARD / 100.0), 4.0)
+		play_sfx("chime")
+		_update_order_board()
 
 func on_out_of_stock(_p: Dictionary) -> void:
 	stats.oos += 1
+	complaint_level += 0.15
+
+func get_milk_product() -> int:
+	return MILK_PRODUCT
+
+func claim_milk_customer(_customer: Node) -> bool:
+	if milk_order_progress < MILK_ORDER_TOTAL or milk_customer_claimed or milk_customer_served:
+		return false
+	milk_customer_claimed = true
+	return true
+
+func _update_order_board() -> void:
+	var progress := mini(milk_order_progress, MILK_ORDER_TOTAL)
+	var order_text := "[ ] RESTOCK MILK %d / %d" % [progress, MILK_ORDER_TOTAL]
+	if progress >= MILK_ORDER_TOTAL and not milk_customer_served:
+		order_text = "[ ] SERVE MILK CUSTOMER"
+	elif milk_customer_served:
+		order_text = "[x] MILK ORDER COMPLETE"
+	if store.has("order_board") and is_instance_valid(store.order_board):
+		store.order_board.text = "TONIGHT'S ORDERS\n%s\nFREEZER AISLE" % order_text
 
 # ---------- interactables (target for Interact colliders built by StoreBuilder) ----------
 func get_prompt_for(body: Node, _p: Node) -> String:
@@ -686,6 +724,12 @@ func get_prompt_for(body: Node, _p: Node) -> String:
 			if not player.carrying.is_empty():
 				return "Hands full  (Q to put a box back)"
 			return "[E] Grab a box of %s  (%d%% on shelves)" % [p.name, int(shelves.fill_ratio(tag.product) * 100)]
+		"supply_pallet":
+			if milk_supply_boxes <= 0:
+				return "MILK PALLET EMPTY"
+			if not player.carrying.is_empty():
+				return "Hands full  (drop what you are carrying first)"
+			return "[E] Take MILK BOX  (8 units)  — %d boxes left" % milk_supply_boxes
 		"can":
 			if player.carrying.get("kind", "") == "trash":
 				return "Take the bag to the dumpster out back"
@@ -723,6 +767,13 @@ func on_interact(body: Node, _p: Node) -> void:
 			if player.carrying.is_empty():
 				player.set_carry({"kind": "stock", "product": tag.product, "count": BOX_UNITS})
 				play_sfx("place")
+		"supply_pallet":
+			if milk_supply_boxes > 0 and player.carrying.is_empty():
+				milk_supply_boxes -= 1
+				player.set_carry({"kind": "stock", "product": MILK_PRODUCT, "count": MILK_ORDER_TOTAL})
+				_update_order_board()
+				hud.toast("Milk box taken. Bring it to the freezer aisle.", 3.0)
+				play_sfx("place")
 		"can":
 			if player.carrying.is_empty() and trash >= 0.25:
 				trash = 0.0
@@ -747,10 +798,20 @@ func on_interact(body: Node, _p: Node) -> void:
 			else:
 				var c: Dictionary = player.carrying
 				if c.get("kind", "") == "stock" and int(c.product) in Products.FROZEN_ITEMS:
-					freezer_stock[int(c.product)] = mini(12, int(freezer_stock.get(int(c.product), 0)) + 4)
+					var product_idx := int(c.product)
+					freezer_stock[product_idx] = mini(12, int(freezer_stock.get(product_idx, 0)) + 1)
 					player.use_stock_unit()
-					hud.toast("Freezer stocked. The doors close.")
-					freezer_open = false
+					if product_idx == MILK_PRODUCT:
+						milk_order_progress = mini(MILK_ORDER_TOTAL, milk_order_progress + 1)
+						_update_order_board()
+						if milk_order_progress == MILK_ORDER_TOTAL:
+							hud.toast("Milk restocked. Now serve the customer asking for it.", 4.0)
+						else:
+							hud.toast("Freezer stocked: %d / %d milk units" % [milk_order_progress, MILK_ORDER_TOTAL], 2.0)
+					else:
+						hud.toast("Freezer stocked.", 2.0)
+					if player.carrying.is_empty():
+						freezer_open = false
 				else:
 					hud.toast("Bring a frozen box from the back room.")
 			var doors: Array = store.freezer.doors
@@ -853,6 +914,12 @@ func _on_carry_changed(c: Dictionary) -> void:
 
 func _update_hints() -> void:
 	var lines: Array = []
+	if milk_order_progress < MILK_ORDER_TOTAL:
+		lines.append("ORDER: RESTOCK MILK %d / %d  — BACKROOM PALLET → FREEZER" % [milk_order_progress, MILK_ORDER_TOTAL])
+	elif not milk_customer_served:
+		lines.append("ORDER: SERVE THE MILK CUSTOMER  — FREEZER AISLE")
+	else:
+		lines.append("ORDER COMPLETE: MILK  — GOOD WORK")
 	var low: Array = shelves.low_products(0.3)
 	if not low.is_empty():
 		lines.append("LOW STOCK: " + ", ".join(low.slice(0, 3)) + (" +%d" % (low.size() - 3) if low.size() > 3 else ""))
